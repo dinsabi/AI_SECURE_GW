@@ -1,0 +1,5 @@
+{
+  "name": "cidns/ai-secure-gateway-12-modules",
+  "type": "project",
+  "autoload": {"psr-4": {"App\\": "src/"}}
+}
