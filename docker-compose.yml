@@ -70,8 +70,6 @@ services:
       POSTGRES_DB: aigw
       POSTGRES_USER: aigw
       POSTGRES_PASSWORD: aigwpass
-    ports:
-      - "5432:5432"
     volumes:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
 
