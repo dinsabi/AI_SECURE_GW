@@ -51,7 +51,7 @@ services:
     environment:
       PORT: 3005
       PGHOST: postgres
-      PGPORT: 5432
+      PGPORT: 8080
       PGDATABASE: aigw
       PGUSER: aigw
       PGPASSWORD: aigwpass
