@@ -1,0 +1,14 @@
+{
+  "name": "AI Secure Gateway",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "AI Secure Gateway",
+      "onAutoForward": "openBrowser"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "ignore"
+    }
+  }
+}
