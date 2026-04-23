@@ -51,7 +51,7 @@ services:
     environment:
       PORT: 3005
       PGHOST: postgres
-      PGPORT: 5432
+      PGPORT: 8080
       PGDATABASE: aigw
       PGUSER: aigw
       PGPASSWORD: aigwpass
@@ -71,7 +71,7 @@ services:
       POSTGRES_USER: aigw
       POSTGRES_PASSWORD: aigwpass
     ports:
-      - "5432:5432"
+      - "5432:5434"
     volumes:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
 
