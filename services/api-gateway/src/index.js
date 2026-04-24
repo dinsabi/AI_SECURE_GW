@@ -15,6 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
 const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-inspector:3001';
+const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || 'http://risk-engine:3002';
 
 // --------------------
 // Health
@@ -22,7 +23,8 @@ const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'api-gateway'
+    service: 'api-gateway',
+    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine']
   });
 });
 
@@ -92,7 +94,6 @@ function authenticateJwt(req, res, next) {
 function requireRole(allowedRoles = []) {
   return (req, res, next) => {
     const userRoles = req.user?.roles || [];
-
     const hasRole = userRoles.some(role => allowedRoles.includes(role));
 
     if (!hasRole) {
@@ -141,9 +142,7 @@ app.post(
         });
       }
 
-      // --------------------
-      // 1. Inspect prompt
-      // --------------------
+      // 1. Prompt inspection
       const inspectorResponse = await axios.post(
         `${PROMPT_INSPECTOR_URL}/inspect`,
         { prompt }
@@ -151,21 +150,53 @@ app.post(
 
       const inspection = inspectorResponse.data;
 
+      // 2. Risk scoring
+      const riskResponse = await axios.post(`${RISK_ENGINE_URL}/score`, {
+        findings: inspection.findings,
+        modelType
+      });
+
+      const risk = riskResponse.data;
+
+      // 3. Security decision
+      let action = 'allowed';
+      if (inspection.sensitive) {
+        action = 'masked';
+      }
+
+      if (risk.level === 'HIGH' && inspection.findings.includes('api_key')) {
+        action = 'blocked';
+      }
+
+      if (action === 'blocked') {
+        return res.status(403).json({
+          status: 'blocked',
+          reason: 'High risk sensitive data detected',
+          user: {
+            email: req.user.email,
+            roles: req.user.roles,
+            department: req.user.department,
+            country: req.user.country
+          },
+          security: {
+            sensitive: inspection.sensitive,
+            findings: inspection.findings,
+            action,
+            risk
+          }
+        });
+      }
+
+      // 4. Masking before LLM
       const promptToSend = inspection.maskedPrompt || prompt;
 
-      console.log('Inspection result:', inspection);
-
-      // --------------------
-      // 2. Call LLM
-      // --------------------
+      // 5. Call LLM
       const response = await axios.post(`${LLM_URL}/generate`, {
         prompt: promptToSend,
         modelType
       });
 
-      // --------------------
-      // 3. Return enriched response
-      // --------------------
+      // 6. Return enriched response
       res.json({
         status: 'success',
 
@@ -179,7 +210,8 @@ app.post(
         security: {
           sensitive: inspection.sensitive,
           findings: inspection.findings,
-          action: inspection.sensitive ? 'masked' : 'allowed'
+          action,
+          risk
         },
 
         provider_response: response.data
@@ -206,6 +238,8 @@ app.use((req, res) => {
   });
 });
 
+// --------------------
+// Start server
 // --------------------
 app.listen(PORT, () => {
   console.log(`api-gateway ready on port ${PORT}`);
