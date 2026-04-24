@@ -1,20 +1,27 @@
 import express from 'express';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
+import helmet from 'helmet';
+import morgan from 'morgan';
 
 const app = express();
-app.use(express.json());
+
+app.use(helmet());
+app.use(express.json({ limit: '1mb' }));
+app.use(morgan('dev'));
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
 
 // --------------------
-// Health check
+// Health checks
 // --------------------
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'api-gateway'
+    service: 'api-gateway',
+    security: ['JWT', 'RBAC', 'MFA header']
   });
 });
 
@@ -25,7 +32,7 @@ app.get('/health', (req, res) => {
 });
 
 // --------------------
-// Mock login pour générer un JWT de test
+// Mock login - token de test
 // --------------------
 app.post('/login/mock', (req, res) => {
   const {
@@ -55,7 +62,7 @@ app.post('/login/mock', (req, res) => {
 });
 
 // --------------------
-// Middleware JWT
+// JWT authentication
 // --------------------
 function authenticateJwt(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -82,12 +89,11 @@ function authenticateJwt(req, res, next) {
 }
 
 // --------------------
-// Middleware RBAC
+// RBAC
 // --------------------
 function requireRole(allowedRoles = []) {
   return (req, res, next) => {
     const userRoles = req.user?.roles || [];
-
     const hasRole = userRoles.some(role => allowedRoles.includes(role));
 
     if (!hasRole) {
@@ -104,7 +110,7 @@ function requireRole(allowedRoles = []) {
 }
 
 // --------------------
-// Middleware MFA header
+// MFA header check
 // --------------------
 function requireMfa(req, res, next) {
   const mfaVerified = String(req.headers['x-mfa-verified'] || '').toLowerCase();
@@ -120,7 +126,7 @@ function requireMfa(req, res, next) {
 }
 
 // --------------------
-// Endpoint protégé
+// Protected endpoint
 // --------------------
 app.post(
   '/v1/generate',
@@ -146,12 +152,13 @@ app.post(
         country: req.user.country
       });
 
-      const response = await axios.post(`${process.env.LLM_URL}/generate`, {
+      const response = await axios.post(`${LLM_URL}/generate`, {
         prompt,
         modelType
       });
 
       res.json({
+        status: 'success',
         user: {
           email: req.user.email,
           roles: req.user.roles,
@@ -160,7 +167,6 @@ app.post(
         },
         provider_response: response.data
       });
-
     } catch (error) {
       console.error('Gateway error:', error.message);
 
@@ -172,6 +178,19 @@ app.post(
   }
 );
 
+// --------------------
+// 404 handler
+// --------------------
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'not_found',
+    path: req.originalUrl
+  });
+});
+
+// --------------------
+// Start server
+// --------------------
 app.listen(PORT, () => {
   console.log(`api-gateway ready on port ${PORT}`);
 });
