@@ -1,7 +1,6 @@
 {
   "name": "api-gateway",
   "version": "1.0.0",
-  "description": "AI Secure Gateway - API Gateway with JWT, RBAC and MFA headers",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -11,7 +10,7 @@
     "axios": "^1.7.7",
     "express": "^4.21.2",
     "helmet": "^7.2.0",
-    "jsonwebtoken": "^9.0.2",
+    "jose": "^5.9.6",
     "morgan": "^1.10.0"
   }
 }

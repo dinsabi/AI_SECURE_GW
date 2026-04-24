@@ -1,8 +1,8 @@
 import express from 'express';
 import axios from 'axios';
-import jwt from 'jsonwebtoken';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const app = express();
 
@@ -11,7 +11,12 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+
+const OIDC_ISSUER = process.env.OIDC_ISSUER || 'http://keycloak:8080/realms/aigw';
+const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID || 'aigw-frontend';
+const KEYCLOAK_TOKEN_URL =
+  process.env.KEYCLOAK_TOKEN_URL ||
+  'http://keycloak:8080/realms/aigw/protocol/openid-connect/token';
 
 const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
 const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-inspector:3001';
@@ -19,11 +24,24 @@ const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || 'http://risk-engine:3002'
 const POLICY_ENGINE_URL = process.env.POLICY_ENGINE_URL || 'http://policy-engine:3003';
 const LOGGER_GRC_URL = process.env.LOGGER_GRC_URL || 'http://logger-grc:3005';
 
+const JWKS = createRemoteJWKSet(
+  new URL(`${OIDC_ISSUER}/protocol/openid-connect/certs`)
+);
+
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     service: 'api-gateway',
-    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine', 'policy-engine', 'logger-grc']
+    iam: 'keycloak-oidc',
+    modules: [
+      'oidc',
+      'rbac',
+      'mfa',
+      'prompt-inspector',
+      'risk-engine',
+      'policy-engine',
+      'logger-grc'
+    ]
   });
 });
 
@@ -31,50 +49,72 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/audit', async (req, res) => {
+app.post('/login/keycloak', async (req, res) => {
   try {
-    const response = await axios.get(`${LOGGER_GRC_URL}/audit`);
+    const username = String(req.body.username || '');
+    const password = String(req.body.password || '');
+
+    if (!username || !password) {
+      return res.status(400).json({
+        error: 'missing_credentials'
+      });
+    }
+
+    const body = new URLSearchParams();
+    body.append('client_id', OIDC_CLIENT_ID);
+    body.append('username', username);
+    body.append('password', password);
+    body.append('grant_type', 'password');
+
+    const response = await axios.post(KEYCLOAK_TOKEN_URL, body, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
     res.json(response.data);
   } catch (error) {
-    res.status(502).json({
-      error: 'audit_unavailable',
-      details: error.message
+    res.status(401).json({
+      error: 'keycloak_login_failed',
+      details: error.response?.data || error.message
     });
   }
 });
 
-app.post('/login/mock', (req, res) => {
-  const {
-    email = 'admin@cidns.eu',
-    roles = ['admin'],
-    department = 'Security',
-    country = 'BE'
-  } = req.body || {};
-
-  const token = jwt.sign(
-    { sub: email, email, roles, department, country },
-    JWT_SECRET,
-    { expiresIn: '1h' }
-  );
-
-  res.json({
-    token,
-    token_type: 'Bearer',
-    expires_in: 3600
-  });
-});
-
-function authenticateJwt(req, res, next) {
+async function authenticateOidc(req, res, next) {
   const authHeader = req.headers.authorization || '';
 
   if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'missing_token' });
+    return res.status(401).json({
+      error: 'missing_token'
+    });
   }
 
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: OIDC_ISSUER
+    });
+
+    if (payload.azp !== OIDC_CLIENT_ID) {
+      return res.status(401).json({
+        error: 'invalid_client',
+        expected_client: OIDC_CLIENT_ID,
+        received_client: payload.azp
+      });
+    }
+
+    req.user = {
+      subject: payload.sub,
+      email: payload.email || payload.preferred_username,
+      username: payload.preferred_username,
+      roles: extractRoles(payload),
+      department: payload.department || 'Security',
+      country: payload.country || 'BE',
+      raw: payload
+    };
+
     next();
   } catch (error) {
     return res.status(401).json({
@@ -82,6 +122,18 @@ function authenticateJwt(req, res, next) {
       message: error.message
     });
   }
+}
+
+function extractRoles(payload) {
+  const realmRoles = payload.realm_access?.roles || [];
+
+  const clientRoles = Object.values(payload.resource_access || {}).flatMap(
+    resource => resource.roles || []
+  );
+
+  const groups = payload.groups || [];
+
+  return [...new Set([...realmRoles, ...clientRoles, ...groups])];
 }
 
 function requireRole(allowedRoles = []) {
@@ -105,7 +157,9 @@ function requireMfa(req, res, next) {
   const mfaVerified = String(req.headers['x-mfa-verified'] || '').toLowerCase();
 
   if (mfaVerified !== 'true') {
-    return res.status(403).json({ error: 'mfa_required' });
+    return res.status(403).json({
+      error: 'mfa_required'
+    });
   }
 
   next();
@@ -133,9 +187,21 @@ async function writeAuditLog({
   }
 }
 
+app.get('/audit', async (req, res) => {
+  try {
+    const response = await axios.get(`${LOGGER_GRC_URL}/audit`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(502).json({
+      error: 'audit_unavailable',
+      details: error.message
+    });
+  }
+});
+
 app.post(
   '/v1/generate',
-  authenticateJwt,
+  authenticateOidc,
   requireMfa,
   requireRole(['admin', 'security_architect', 'finance_manager']),
   async (req, res) => {
@@ -144,11 +210,14 @@ app.post(
       const modelType = String(req.body.modelType || 'public_llm');
 
       if (!prompt) {
-        return res.status(400).json({ error: 'missing_prompt' });
+        return res.status(400).json({
+          error: 'missing_prompt'
+        });
       }
 
       const user = {
         email: req.user.email,
+        username: req.user.username,
         roles: req.user.roles,
         department: req.user.department,
         country: req.user.country

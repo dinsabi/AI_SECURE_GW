@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 
 export default function App() {
+  const [username, setUsername] = useState('admin@cidns.eu');
+  const [password, setPassword] = useState('test');
   const [prompt, setPrompt] = useState('');
   const [token, setToken] = useState('');
   const [result, setResult] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
 
   const login = async () => {
-    const res = await fetch('/api/login/mock', {
+    const res = await fetch('/api/login/keycloak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@cidns.eu', roles: ['admin'] })
+      body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
-    setToken(data.token);
-    setResult({ message: 'Login successful. Token received.' });
+
+    if (!res.ok) {
+      setResult(data);
+      return;
+    }
+
+    setToken(data.access_token);
+    setResult({ message: 'Keycloak login successful. Access token received.' });
   };
 
   const sendPrompt = async () => {
@@ -77,18 +85,49 @@ export default function App() {
   return (
     <div style={{ padding: 40, fontFamily: 'Arial', maxWidth: 1200 }}>
       <h1>AI Secure Gateway</h1>
-      <p>Secure AI access with IAM, RBAC, MFA, risk scoring, policy enforcement and audit trail.</p>
+      <p>
+        Secure AI access with Keycloak IAM, RBAC, MFA header, risk scoring,
+        policy enforcement and audit trail.
+      </p>
 
-      <button onClick={login}>Login Mock</button>
-      <button onClick={loadAuditLogs} style={{ marginLeft: 10 }}>
+      <div
+        style={{
+          marginTop: 20,
+          padding: 20,
+          border: '1px solid #ddd',
+          borderRadius: 12,
+          background: '#fafafa'
+        }}
+      >
+        <h2>Keycloak Login</h2>
+
+        <input
+          style={input}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+        />
+
+        <input
+          style={input}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+        />
+
+        <button onClick={login}>Login with Keycloak</button>
+
+        {token && (
+          <span style={{ marginLeft: 12, color: '#065f46', fontWeight: 'bold' }}>
+            Authenticated via Keycloak
+          </span>
+        )}
+      </div>
+
+      <button onClick={loadAuditLogs} style={{ marginTop: 20 }}>
         Load Audit Logs
       </button>
-
-      {token && (
-        <span style={{ marginLeft: 12, color: '#065f46', fontWeight: 'bold' }}>
-          Authenticated
-        </span>
-      )}
 
       <div style={{ marginTop: 25 }}>
         <textarea
@@ -111,7 +150,15 @@ export default function App() {
       </button>
 
       {risk && policy && (
-        <div style={{ marginTop: 25, padding: 20, border: '1px solid #ddd', borderRadius: 12, background: '#fafafa' }}>
+        <div
+          style={{
+            marginTop: 25,
+            padding: 20,
+            border: '1px solid #ddd',
+            borderRadius: 12,
+            background: '#fafafa'
+          }}
+        >
           <h2>Security Decision</h2>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -133,18 +180,27 @@ export default function App() {
       )}
 
       {result?.provider_response && (
-        <div style={{ marginTop: 25, padding: 20, border: '1px solid #ddd', borderRadius: 12 }}>
+        <div style={card}>
           <h2>LLM Response</h2>
           <p>{result.provider_response.answer}</p>
         </div>
       )}
 
-      {result?.status === 'blocked' || result?.status === 'approval_required' ? (
-        <div style={{ marginTop: 25, padding: 20, border: '1px solid #fca5a5', borderRadius: 12, background: '#fee2e2', color: '#991b1b' }}>
+      {(result?.status === 'blocked' || result?.status === 'approval_required') && (
+        <div
+          style={{
+            marginTop: 25,
+            padding: 20,
+            border: '1px solid #fca5a5',
+            borderRadius: 12,
+            background: '#fee2e2',
+            color: '#991b1b'
+          }}
+        >
           <h2>Request Not Sent to LLM</h2>
           <p>{result.message}</p>
         </div>
-      ) : null}
+      )}
 
       {auditLogs.length > 0 && (
         <div style={{ marginTop: 30 }}>
@@ -184,6 +240,22 @@ export default function App() {
     </div>
   );
 }
+
+const input = {
+  display: 'block',
+  width: '320px',
+  padding: 10,
+  marginBottom: 10,
+  borderRadius: 6,
+  border: '1px solid #ccc'
+};
+
+const card = {
+  marginTop: 25,
+  padding: 20,
+  border: '1px solid #ddd',
+  borderRadius: 12
+};
 
 const th = {
   border: '1px solid #ddd',
