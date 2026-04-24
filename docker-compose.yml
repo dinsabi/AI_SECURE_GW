@@ -14,38 +14,49 @@ services:
     depends_on:
       - api-gateway
 
+  # -------------------------
+  # KEYCLOAK IAM
+  # -------------------------
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
-    command: start-dev
+    command: start-dev --http-host=0.0.0.0
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     ports:
       - "8081:8080"
 
+  # -------------------------
+  # API GATEWAY
+  # -------------------------
   api-gateway:
     build: ./services/api-gateway
     environment:
       PORT: 3000
 
+      # OIDC
       OIDC_ISSUER: http://keycloak:8080/realms/aigw
       OIDC_CLIENT_ID: aigw-frontend
       KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/aigw/protocol/openid-connect/token
 
+      # SERVICES
       PROMPT_INSPECTOR_URL: http://prompt-inspector:3001
       RISK_ENGINE_URL: http://risk-engine:3002
       POLICY_ENGINE_URL: http://policy-engine:3003
       LOGGER_GRC_URL: http://logger-grc:3005
       LLM_URL: http://llm-mock:3006
+
     depends_on:
       - keycloak
       - prompt-inspector
       - risk-engine
       - policy-engine
-      - response-analyzer
       - logger-grc
       - llm-mock
 
+  # -------------------------
+  # SECURITY SERVICES
+  # -------------------------
   prompt-inspector:
     build: ./services/prompt-inspector
     environment:
@@ -66,6 +77,9 @@ services:
     environment:
       PORT: 3004
 
+  # -------------------------
+  # LOGGER GRC + DATABASE
+  # -------------------------
   logger-grc:
     build: ./services/logger-grc
     environment:
@@ -77,12 +91,6 @@ services:
       PGPASSWORD: aigwpass
     depends_on:
       - postgres
-      - elasticsearch
-
-  llm-mock:
-    build: ./services/llm-mock
-    environment:
-      PORT: 3006
 
   postgres:
     image: postgres:16-alpine
@@ -93,6 +101,17 @@ services:
     volumes:
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
 
+  # -------------------------
+  # LLM MOCK
+  # -------------------------
+  llm-mock:
+    build: ./services/llm-mock
+    environment:
+      PORT: 3006
+
+  # -------------------------
+  # ELASTIC (OPTIONNEL)
+  # -------------------------
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
     environment:
