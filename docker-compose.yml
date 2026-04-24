@@ -8,23 +8,25 @@ services:
     depends_on:
       - api-gateway
 
+services:
   api-gateway:
-    build: ./services/api-gateway
-    environment:
-      PORT: 3000
-      PROMPT_INSPECTOR_URL: http://prompt-inspector:3001
-      RISK_ENGINE_URL: http://risk-engine:3002
-      POLICY_ENGINE_URL: http://policy-engine:3003
-      RESPONSE_ANALYZER_URL: http://response-analyzer:3004
-      LOGGER_GRC_URL: http://logger-grc:3005
-      LLM_URL: http://llm-mock:3006
-    depends_on:
-      - prompt-inspector
-      - risk-engine
-      - policy-engine
-      - response-analyzer
-      - logger-grc
-      - llm-mock
+  build: ./services/api-gateway
+  environment:
+    PORT: 3000
+    JWT_SECRET: change-me-super-secret
+    PROMPT_INSPECTOR_URL: http://prompt-inspector:3001
+    RISK_ENGINE_URL: http://risk-engine:3002
+    POLICY_ENGINE_URL: http://policy-engine:3003
+    RESPONSE_ANALYZER_URL: http://response-analyzer:3004
+    LOGGER_GRC_URL: http://logger-grc:3005
+    LLM_URL: http://llm-mock:3006
+  depends_on:
+    - prompt-inspector
+    - risk-engine
+    - policy-engine
+    - response-analyzer
+    - logger-grc
+    - llm-mock
 
   prompt-inspector:
     build: ./services/prompt-inspector
