@@ -6,22 +6,39 @@ services:
     volumes:
       - ./gateway/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
+      - frontend
       - api-gateway
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - api-gateway
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
 
   api-gateway:
     build: ./services/api-gateway
     environment:
       PORT: 3000
-      JWT_SECRET: change-me-super-secret
 
-      # Microservices
+      OIDC_ISSUER: http://keycloak:8080/realms/aigw
+      OIDC_CLIENT_ID: aigw-frontend
+      KEYCLOAK_TOKEN_URL: http://keycloak:8080/realms/aigw/protocol/openid-connect/token
+
       PROMPT_INSPECTOR_URL: http://prompt-inspector:3001
       RISK_ENGINE_URL: http://risk-engine:3002
       POLICY_ENGINE_URL: http://policy-engine:3003
-      RESPONSE_ANALYZER_URL: http://response-analyzer:3004
       LOGGER_GRC_URL: http://logger-grc:3005
       LLM_URL: http://llm-mock:3006
     depends_on:
+      - keycloak
       - prompt-inspector
       - risk-engine
       - policy-engine
@@ -82,10 +99,3 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
-
-  frontend:
-   build: ./frontend
-   environment:
-    VITE_API_URL: http://localhost:8080
-   depends_on:
-    - api-gateway
