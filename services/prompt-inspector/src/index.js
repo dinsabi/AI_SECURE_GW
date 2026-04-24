@@ -1,26 +1,61 @@
 import express from 'express';
+
 const app = express();
 app.use(express.json());
 
-function maskPrompt(prompt) {
-  return prompt
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[EMAIL_REDACTED]')
-    .replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g, '[IBAN_REDACTED]');
+const PORT = process.env.PORT || 3001;
+
+function inspectPrompt(prompt) {
+  const findings = [];
+
+  let maskedPrompt = prompt;
+
+  const emailRegex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+  const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g;
+  const apiKeyRegex = /\b(sk-[A-Za-z0-9_-]{20,}|api[_-]?key\s*[:=]\s*[A-Za-z0-9_-]{16,})\b/gi;
+
+  if (emailRegex.test(prompt)) {
+    findings.push('email');
+    maskedPrompt = maskedPrompt.replace(emailRegex, '[EMAIL]');
+  }
+
+  if (ibanRegex.test(prompt)) {
+    findings.push('iban');
+    maskedPrompt = maskedPrompt.replace(ibanRegex, '[IBAN]');
+  }
+
+  if (apiKeyRegex.test(prompt)) {
+    findings.push('api_key');
+    maskedPrompt = maskedPrompt.replace(apiKeyRegex, '[API_KEY]');
+  }
+
+  return {
+    sensitive: findings.length > 0,
+    findings,
+    maskedPrompt
+  };
 }
+
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'prompt-inspector' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 app.post('/inspect', (req, res) => {
   const prompt = String(req.body.prompt || '');
-  const findings = [];
-  if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(prompt)) findings.push({ type: 'email', category: 'pii', severity: 'medium' });
-  if (/\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/.test(prompt)) findings.push({ type: 'iban', category: 'pii', severity: 'high' });
-  if (/\b(password|passwd|pwd|secret|token|client_secret)\s*[:=]/i.test(prompt)) findings.push({ type: 'secret', category: 'secret', severity: 'critical' });
-  if (/\b(contract|salary|customer list|bank account|source code|repository)\b/i.test(prompt)) findings.push({ type: 'business_sensitive', category: 'business', severity: 'high' });
 
-  const categories = [...new Set(findings.map(f => f.category))];
-  let classification = 'public';
-  if (findings.some(f => f.severity === 'critical')) classification = 'critical';
-  else if (findings.length > 0) classification = 'confidential';
+  if (!prompt) {
+    return res.status(400).json({
+      error: 'missing_prompt'
+    });
+  }
 
-  res.json({ findings, categories, classification, maskedPrompt: maskPrompt(prompt) });
+  res.json(inspectPrompt(prompt));
 });
-app.listen(process.env.PORT || 3001, () => console.log('prompt-inspector ready'));
+
+app.listen(PORT, () => {
+  console.log(`prompt-inspector ready on port ${PORT}`);
+});
