@@ -16,15 +16,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
 const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-inspector:3001';
 const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || 'http://risk-engine:3002';
+const POLICY_ENGINE_URL = process.env.POLICY_ENGINE_URL || 'http://policy-engine:3003';
 
-// --------------------
-// Health
-// --------------------
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     service: 'api-gateway',
-    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine']
+    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine', 'policy-engine']
   });
 });
 
@@ -32,9 +30,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// --------------------
-// Mock login
-// --------------------
 app.post('/login/mock', (req, res) => {
   const {
     email = 'admin@cidns.eu',
@@ -62,23 +57,17 @@ app.post('/login/mock', (req, res) => {
   });
 });
 
-// --------------------
-// JWT middleware
-// --------------------
 function authenticateJwt(req, res, next) {
   const authHeader = req.headers.authorization || '';
 
   if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'missing_token'
-    });
+    return res.status(401).json({ error: 'missing_token' });
   }
 
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch (error) {
     return res.status(401).json({
@@ -88,9 +77,6 @@ function authenticateJwt(req, res, next) {
   }
 }
 
-// --------------------
-// RBAC
-// --------------------
 function requireRole(allowedRoles = []) {
   return (req, res, next) => {
     const userRoles = req.user?.roles || [];
@@ -108,24 +94,16 @@ function requireRole(allowedRoles = []) {
   };
 }
 
-// --------------------
-// MFA
-// --------------------
 function requireMfa(req, res, next) {
   const mfaVerified = String(req.headers['x-mfa-verified'] || '').toLowerCase();
 
   if (mfaVerified !== 'true') {
-    return res.status(403).json({
-      error: 'mfa_required'
-    });
+    return res.status(403).json({ error: 'mfa_required' });
   }
 
   next();
 }
 
-// --------------------
-// MAIN ENDPOINT
-// --------------------
 app.post(
   '/v1/generate',
   authenticateJwt,
@@ -137,12 +115,9 @@ app.post(
       const modelType = String(req.body.modelType || 'public_llm');
 
       if (!prompt) {
-        return res.status(400).json({
-          error: 'missing_prompt'
-        });
+        return res.status(400).json({ error: 'missing_prompt' });
       }
 
-      // 1. Prompt inspection
       const inspectorResponse = await axios.post(
         `${PROMPT_INSPECTOR_URL}/inspect`,
         { prompt }
@@ -150,7 +125,6 @@ app.post(
 
       const inspection = inspectorResponse.data;
 
-      // 2. Risk scoring
       const riskResponse = await axios.post(`${RISK_ENGINE_URL}/score`, {
         findings: inspection.findings,
         modelType
@@ -158,20 +132,24 @@ app.post(
 
       const risk = riskResponse.data;
 
-      // 3. Security decision
-      let action = 'allowed';
-      if (inspection.sensitive) {
-        action = 'masked';
-      }
+      const policyResponse = await axios.post(`${POLICY_ENGINE_URL}/evaluate`, {
+        findings: inspection.findings,
+        risk,
+        modelType,
+        user: {
+          email: req.user.email,
+          roles: req.user.roles,
+          department: req.user.department,
+          country: req.user.country
+        }
+      });
 
-      if (risk.level === 'HIGH' && inspection.findings.includes('api_key')) {
-        action = 'blocked';
-      }
+      const policy = policyResponse.data;
 
-      if (action === 'blocked') {
+      if (policy.action === 'blocked' || policy.action === 'approval_required') {
         return res.status(403).json({
-          status: 'blocked',
-          reason: 'High risk sensitive data detected',
+          status: policy.action,
+          message: policy.reason,
           user: {
             email: req.user.email,
             roles: req.user.roles,
@@ -181,42 +159,38 @@ app.post(
           security: {
             sensitive: inspection.sensitive,
             findings: inspection.findings,
-            action,
-            risk
+            risk,
+            policy
           }
         });
       }
 
-      // 4. Masking before LLM
-      const promptToSend = inspection.maskedPrompt || prompt;
+      const promptToSend =
+        policy.action === 'masked'
+          ? inspection.maskedPrompt || prompt
+          : prompt;
 
-      // 5. Call LLM
       const response = await axios.post(`${LLM_URL}/generate`, {
         prompt: promptToSend,
         modelType
       });
 
-      // 6. Return enriched response
       res.json({
         status: 'success',
-
         user: {
           email: req.user.email,
           roles: req.user.roles,
           department: req.user.department,
           country: req.user.country
         },
-
         security: {
           sensitive: inspection.sensitive,
           findings: inspection.findings,
-          action,
-          risk
+          risk,
+          policy
         },
-
         provider_response: response.data
       });
-
     } catch (error) {
       console.error('Gateway error:', error.message);
 
@@ -228,9 +202,6 @@ app.post(
   }
 );
 
-// --------------------
-// 404
-// --------------------
 app.use((req, res) => {
   res.status(404).json({
     error: 'not_found',
@@ -238,9 +209,6 @@ app.use((req, res) => {
   });
 });
 
-// --------------------
-// Start server
-// --------------------
 app.listen(PORT, () => {
   console.log(`api-gateway ready on port ${PORT}`);
 });

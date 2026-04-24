@@ -1,28 +1,59 @@
 import express from 'express';
+
 const app = express();
 app.use(express.json());
 
-app.post('/decide', (req, res) => {
-  const { user, inspection, risk, modelType, frameworks } = req.body;
-  let action = 'allow';
-  const reasons = [];
+const PORT = process.env.PORT || 3003;
 
-  if (inspection.classification === 'critical' && modelType === 'public_llm') {
-    action = 'block';
-    reasons.push('Critical data cannot be sent to public LLM');
-  } else if ((user.department === 'Finance' || user.department === 'HR') && inspection.classification !== 'public') {
-    action = 'mask';
-    reasons.push('Sensitive department requires masking');
-  }
-  if ((frameworks || []).includes('NIS2') && risk.level === 'HIGH') {
-    action = 'block';
-    reasons.push('NIS2 high-risk block');
-  }
-  if ((frameworks || []).includes('GDPR') && (inspection.categories || []).includes('pii') && action === 'allow') {
-    action = 'mask';
-    reasons.push('GDPR requires PII minimization');
-  }
-
-  res.json({ action, reasons });
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'policy-engine' });
 });
-app.listen(process.env.PORT || 3003, () => console.log('policy-engine ready'));
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.post('/evaluate', (req, res) => {
+  const risk = req.body.risk || {};
+  const findings = req.body.findings || [];
+  const modelType = req.body.modelType || 'public_llm';
+
+  let action = 'allowed';
+  let reason = 'Low risk request allowed';
+
+  if (risk.level === 'LOW') {
+    action = 'allowed';
+    reason = 'Low risk request allowed';
+  }
+
+  if (risk.level === 'MEDIUM') {
+    action = 'masked';
+    reason = 'Medium risk request: sensitive data must be masked';
+  }
+
+  if (risk.level === 'HIGH') {
+    action = 'approval_required';
+    reason = 'High risk request requires security approval';
+  }
+
+  if (findings.includes('api_key')) {
+    action = 'blocked';
+    reason = 'API keys or secrets must never be sent to an LLM';
+  }
+
+  if (findings.includes('iban') && modelType === 'public_llm') {
+    action = 'masked';
+    reason = 'IBAN detected: masking required before public LLM usage';
+  }
+
+  res.json({
+    action,
+    reason,
+    policy: 'NIS2-AI-GATEWAY-POLICY',
+    framework: ['NIS2', 'ISO27001', 'GDPR']
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`policy-engine ready on port ${PORT}`);
+});

@@ -36,18 +36,43 @@ export default function App() {
   };
 
   const risk = result?.security?.risk;
-  const level = risk?.level;
+  const policy = result?.security?.policy;
+  const findings = result?.security?.findings || [];
 
-  const badgeStyle = {
+  const riskColors = {
     LOW: { background: '#d1fae5', color: '#065f46' },
     MEDIUM: { background: '#fef3c7', color: '#92400e' },
     HIGH: { background: '#fee2e2', color: '#991b1b' }
   };
 
+  const actionColors = {
+    allowed: { background: '#d1fae5', color: '#065f46' },
+    masked: { background: '#dbeafe', color: '#1e40af' },
+    blocked: { background: '#fee2e2', color: '#991b1b' },
+    approval_required: { background: '#fef3c7', color: '#92400e' }
+  };
+
+  const badge = (label, style) => (
+    <span
+      style={{
+        padding: '6px 14px',
+        borderRadius: 999,
+        fontWeight: 'bold',
+        display: 'inline-block',
+        ...style
+      }}
+    >
+      {label}
+    </span>
+  );
+
   return (
-    <div style={{ padding: 40, fontFamily: 'Arial', maxWidth: 1000 }}>
+    <div style={{ padding: 40, fontFamily: 'Arial', maxWidth: 1100 }}>
       <h1>AI Secure Gateway</h1>
-      <p>Secure prompt gateway with JWT, RBAC, MFA, masking and NIS2 risk scoring.</p>
+      <p>
+        Secure AI access with JWT, RBAC, MFA, prompt inspection, NIS2 risk scoring
+        and policy enforcement.
+      </p>
 
       <button onClick={login}>Login Mock</button>
 
@@ -77,7 +102,7 @@ export default function App() {
         Analyze & Send Prompt
       </button>
 
-      {risk && (
+      {risk && policy && (
         <div
           style={{
             marginTop: 25,
@@ -87,34 +112,30 @@ export default function App() {
             background: '#fafafa'
           }}
         >
-          <h2>Security Analysis</h2>
+          <h2>Security Decision</h2>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <strong>Risk level:</strong>
-            <span
-              style={{
-                padding: '6px 14px',
-                borderRadius: 999,
-                fontWeight: 'bold',
-                ...(badgeStyle[level] || {})
-              }}
-            >
-              {level}
-            </span>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <strong>Risk:</strong>
+            {badge(risk.level, riskColors[risk.level])}
 
             <strong>Score:</strong>
             <span>{risk.score}/100</span>
+
+            <strong>Action:</strong>
+            {badge(policy.action, actionColors[policy.action])}
           </div>
 
           <p>
-            <strong>Action:</strong> {result.security.action}
+            <strong>Findings:</strong>{' '}
+            {findings.length > 0 ? findings.join(', ') : 'None'}
           </p>
 
           <p>
-            <strong>Findings:</strong>{' '}
-            {result.security.findings.length > 0
-              ? result.security.findings.join(', ')
-              : 'None'}
+            <strong>Policy:</strong> {policy.policy}
+          </p>
+
+          <p>
+            <strong>Decision reason:</strong> {policy.reason}
           </p>
 
           <p>
@@ -136,6 +157,22 @@ export default function App() {
           <p>{result.provider_response.answer}</p>
         </div>
       )}
+
+      {result?.status === 'blocked' || result?.status === 'approval_required' ? (
+        <div
+          style={{
+            marginTop: 25,
+            padding: 20,
+            border: '1px solid #fca5a5',
+            borderRadius: 12,
+            background: '#fee2e2',
+            color: '#991b1b'
+          }}
+        >
+          <h2>Request Not Sent to LLM</h2>
+          <p>{result.message}</p>
+        </div>
+      ) : null}
 
       {result && (
         <pre style={{ marginTop: 25, background: '#eee', padding: 15, overflow: 'auto' }}>
