@@ -82,3 +82,10 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+  frontend:
+   build: ./frontend
+   environment:
+    VITE_API_URL: http://localhost:8080
+   depends_on:
+    - api-gateway
