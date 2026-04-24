@@ -17,17 +17,30 @@ const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
 const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-inspector:3001';
 const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || 'http://risk-engine:3002';
 const POLICY_ENGINE_URL = process.env.POLICY_ENGINE_URL || 'http://policy-engine:3003';
+const LOGGER_GRC_URL = process.env.LOGGER_GRC_URL || 'http://logger-grc:3005';
 
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     service: 'api-gateway',
-    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine', 'policy-engine']
+    modules: ['jwt', 'rbac', 'mfa', 'prompt-inspector', 'risk-engine', 'policy-engine', 'logger-grc']
   });
 });
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/audit', async (req, res) => {
+  try {
+    const response = await axios.get(`${LOGGER_GRC_URL}/audit`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(502).json({
+      error: 'audit_unavailable',
+      details: error.message
+    });
+  }
 });
 
 app.post('/login/mock', (req, res) => {
@@ -39,13 +52,7 @@ app.post('/login/mock', (req, res) => {
   } = req.body || {};
 
   const token = jwt.sign(
-    {
-      sub: email,
-      email,
-      roles,
-      department,
-      country
-    },
+    { sub: email, email, roles, department, country },
     JWT_SECRET,
     { expiresIn: '1h' }
   );
@@ -104,6 +111,28 @@ function requireMfa(req, res, next) {
   next();
 }
 
+async function writeAuditLog({
+  user,
+  originalPrompt,
+  maskedPrompt,
+  security,
+  modelType,
+  status
+}) {
+  try {
+    await axios.post(`${LOGGER_GRC_URL}/audit`, {
+      user,
+      originalPrompt,
+      maskedPrompt,
+      security,
+      modelType,
+      status
+    });
+  } catch (error) {
+    console.error('Audit logging failed:', error.message);
+  }
+}
+
 app.post(
   '/v1/generate',
   authenticateJwt,
@@ -117,6 +146,13 @@ app.post(
       if (!prompt) {
         return res.status(400).json({ error: 'missing_prompt' });
       }
+
+      const user = {
+        email: req.user.email,
+        roles: req.user.roles,
+        department: req.user.department,
+        country: req.user.country
+      };
 
       const inspectorResponse = await axios.post(
         `${PROMPT_INSPECTOR_URL}/inspect`,
@@ -136,59 +172,59 @@ app.post(
         findings: inspection.findings,
         risk,
         modelType,
-        user: {
-          email: req.user.email,
-          roles: req.user.roles,
-          department: req.user.department,
-          country: req.user.country
-        }
+        user
       });
 
       const policy = policyResponse.data;
 
-      if (policy.action === 'blocked' || policy.action === 'approval_required') {
-        return res.status(403).json({
-          status: policy.action,
-          message: policy.reason,
-          user: {
-            email: req.user.email,
-            roles: req.user.roles,
-            department: req.user.department,
-            country: req.user.country
-          },
-          security: {
-            sensitive: inspection.sensitive,
-            findings: inspection.findings,
-            risk,
-            policy
-          }
-        });
-      }
+      const security = {
+        sensitive: inspection.sensitive,
+        findings: inspection.findings,
+        risk,
+        policy
+      };
 
       const promptToSend =
         policy.action === 'masked'
           ? inspection.maskedPrompt || prompt
           : prompt;
 
+      if (policy.action === 'blocked' || policy.action === 'approval_required') {
+        await writeAuditLog({
+          user,
+          originalPrompt: prompt,
+          maskedPrompt: promptToSend,
+          security,
+          modelType,
+          status: policy.action
+        });
+
+        return res.status(403).json({
+          status: policy.action,
+          message: policy.reason,
+          user,
+          security
+        });
+      }
+
       const response = await axios.post(`${LLM_URL}/generate`, {
         prompt: promptToSend,
         modelType
       });
 
+      await writeAuditLog({
+        user,
+        originalPrompt: prompt,
+        maskedPrompt: promptToSend,
+        security,
+        modelType,
+        status: 'success'
+      });
+
       res.json({
         status: 'success',
-        user: {
-          email: req.user.email,
-          roles: req.user.roles,
-          department: req.user.department,
-          country: req.user.country
-        },
-        security: {
-          sensitive: inspection.sensitive,
-          findings: inspection.findings,
-          risk,
-          policy
-        },
+        user,
+        security,
         provider_response: response.data
       });
     } catch (error) {

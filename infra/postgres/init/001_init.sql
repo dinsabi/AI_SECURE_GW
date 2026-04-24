@@ -1,8 +1,23 @@
-CREATE TABLE IF NOT EXISTS audit_events (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
-    trace_id VARCHAR(64) NOT NULL,
-    event_type VARCHAR(128) NOT NULL,
-    severity VARCHAR(16) NOT NULL,
-    payload JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+
+    user_email TEXT,
+    user_roles TEXT,
+    department TEXT,
+    country TEXT,
+
+    original_prompt TEXT,
+    masked_prompt TEXT,
+
+    findings TEXT,
+    sensitive BOOLEAN,
+
+    risk_score INTEGER,
+    risk_level TEXT,
+    policy_action TEXT,
+    policy_reason TEXT,
+
+    model_type TEXT,
+    status TEXT
 );
