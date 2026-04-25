@@ -18,14 +18,18 @@ services:
   # KEYCLOAK IAM
   # -------------------------
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    command: start-dev --http-host=0.0.0.0
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: obscure-fiesta-g4wqg5974vj72jg6-8081.app.github.dev
-    ports:
-      - "8081:8080"
+image: quay.io/keycloak/keycloak:26.0
+command:
+    - start-dev
+    - --http-host=0.0.0.0
+    - --hostname=https://obscure-fiesta-g4wqg5974vj72jg6-8081.app.github.dev
+    - --hostname-strict=false
+    - --proxy-headers=xforwarded
+environment:
+    KC_BOOTSTRAP_ADMIN_USERNAME: admin
+    KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+ports:
+    - "8081:8080"
 
   # -------------------------
   # API GATEWAY
