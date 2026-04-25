@@ -23,6 +23,7 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: obscure-fiesta-g4wqg5974vj72jg6-8081.app.github.dev
     ports:
       - "8081:8080"
 
