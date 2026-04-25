@@ -15,26 +15,25 @@ services:
       - api-gateway
 
   # -------------------------
-  # KEYCLOAK IAM
+  # KEYCLOAK (IAM)
   # -------------------------
   keycloak:
-image: quay.io/keycloak/keycloak:26.0
-command:
-    - start-dev
-    - --http-host=0.0.0.0
-    - --hostname=https://obscure-fiesta-g4wqg5974vj72jg6-8081.app.github.dev
-    - --hostname-strict=false
-    - --proxy-headers=xforwarded
-environment:
-    KC_BOOTSTRAP_ADMIN_USERNAME: admin
-    KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-ports:
-    - "8081:8080"
+    image: quay.io/keycloak/keycloak:26.0
+    command:
+      - start-dev
+      - --http-host=0.0.0.0
+      - --hostname-strict=false
+      - --proxy-headers=xforwarded
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
 
   # -------------------------
   # API GATEWAY
   # -------------------------
-api-gateway:
+  api-gateway:
     build: ./services/api-gateway
     environment:
       PORT: 3000
@@ -60,32 +59,32 @@ api-gateway:
       - llm-mock
 
   # -------------------------
-  # SECURITY SERVICES
+  # SECURITY ENGINES
   # -------------------------
-prompt-inspector:
+  prompt-inspector:
     build: ./services/prompt-inspector
     environment:
       PORT: 3001
 
-risk-engine:
+  risk-engine:
     build: ./services/risk-engine
     environment:
       PORT: 3002
 
-policy-engine:
+  policy-engine:
     build: ./services/policy-engine
     environment:
       PORT: 3003
 
-response-analyzer:
+  response-analyzer:
     build: ./services/response-analyzer
     environment:
       PORT: 3004
 
   # -------------------------
-  # LOGGER GRC + DATABASE
+  # LOGGER + DB
   # -------------------------
-logger-grc:
+  logger-grc:
     build: ./services/logger-grc
     environment:
       PORT: 3005
@@ -97,7 +96,7 @@ logger-grc:
     depends_on:
       - postgres
 
-postgres:
+  postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: aigw
@@ -109,15 +108,15 @@ postgres:
   # -------------------------
   # LLM MOCK
   # -------------------------
-llm-mock:
+  llm-mock:
     build: ./services/llm-mock
     environment:
       PORT: 3006
 
   # -------------------------
-  # ELASTIC (OPTIONNEL)
+  # ELASTIC (optionnel)
   # -------------------------
-elasticsearch:
+  elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
     environment:
       - discovery.type=single-node
