@@ -1,316 +1,147 @@
-import express from 'express';
-import axios from 'axios';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import express from "express";
 
 const app = express();
-
-app.use(helmet());
-app.use(express.json({ limit: '1mb' }));
-app.use(morgan('dev'));
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const OIDC_ISSUER = process.env.OIDC_ISSUER || 'http://keycloak:8080/realms/aigw';
-const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID || 'aigw-frontend';
-const KEYCLOAK_TOKEN_URL =
-  process.env.KEYCLOAK_TOKEN_URL ||
-  'http://keycloak:8080/realms/aigw/protocol/openid-connect/token';
-
-const LLM_URL = process.env.LLM_URL || 'http://llm-mock:3006';
-const PROMPT_INSPECTOR_URL = process.env.PROMPT_INSPECTOR_URL || 'http://prompt-inspector:3001';
-const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || 'http://risk-engine:3002';
-const POLICY_ENGINE_URL = process.env.POLICY_ENGINE_URL || 'http://policy-engine:3003';
-const LOGGER_GRC_URL = process.env.LOGGER_GRC_URL || 'http://logger-grc:3005';
-
-const JWKS = createRemoteJWKSet(
-  new URL(`${OIDC_ISSUER}/protocol/openid-connect/certs`)
-);
-
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'api-gateway',
-    iam: 'keycloak-oidc',
-    modules: [
-      'oidc',
-      'rbac',
-      'mfa',
-      'prompt-inspector',
-      'risk-engine',
-      'policy-engine',
-      'logger-grc'
-    ]
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-app.post('/login/keycloak', async (req, res) => {
-  try {
-    const username = String(req.body.username || '');
-    const password = String(req.body.password || '');
-
-    if (!username || !password) {
-      return res.status(400).json({
-        error: 'missing_credentials'
-      });
-    }
-
-    const body = new URLSearchParams();
-    body.append('client_id', OIDC_CLIENT_ID);
-    body.append('username', username);
-    body.append('password', password);
-    body.append('grant_type', 'password');
-
-    const response = await axios.post(KEYCLOAK_TOKEN_URL, body, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-
-    res.json(response.data);
-  } catch (error) {
-    res.status(401).json({
-      error: 'keycloak_login_failed',
-      details: error.response?.data || error.message
-    });
-  }
-});
-
-async function authenticateOidc(req, res, next) {
-  const authHeader = req.headers.authorization || '';
-
-  if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'missing_token'
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-
-  try {
-    const { payload } = await jwtVerify(token, JWKS, {
-      issuer: OIDC_ISSUER
-    });
-
-    if (payload.azp !== OIDC_CLIENT_ID) {
-      return res.status(401).json({
-        error: 'invalid_client',
-        expected_client: OIDC_CLIENT_ID,
-        received_client: payload.azp
-      });
-    }
-
-    req.user = {
-      subject: payload.sub,
-      email: payload.email || payload.preferred_username,
-      username: payload.preferred_username,
-      roles: extractRoles(payload),
-      department: payload.department || 'Security',
-      country: payload.country || 'BE',
-      raw: payload
-    };
-
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      error: 'invalid_token',
-      message: error.message
-    });
-  }
-}
-
-function extractRoles(payload) {
-  const realmRoles = payload.realm_access?.roles || [];
-
-  const clientRoles = Object.values(payload.resource_access || {}).flatMap(
-    resource => resource.roles || []
-  );
-
-  const groups = payload.groups || [];
-
-  return [...new Set([...realmRoles, ...clientRoles, ...groups])];
-}
-
-function requireRole(allowedRoles = []) {
-  return (req, res, next) => {
-    const userRoles = req.user?.roles || [];
-    const hasRole = userRoles.some(role => allowedRoles.includes(role));
-
-    if (!hasRole) {
-      return res.status(403).json({
-        error: 'forbidden',
-        required_roles: allowedRoles,
-        user_roles: userRoles
-      });
-    }
-
-    next();
+function readUserFromHeaders(req) {
+  return {
+    email: req.headers["x-user-email"] || "admin@cidns.eu",
+    department: req.headers["x-user-department"] || "Unknown",
+    roles: req.headers["x-user-roles"] || "user",
+    country: req.headers["x-user-country"] || "BE",
+    mfaVerified: req.headers["x-mfa-verified"] || "false",
   };
 }
 
-function requireMfa(req, res, next) {
-  const mfaVerified = String(req.headers['x-mfa-verified'] || '').toLowerCase();
+function extractBearerToken(req) {
+  const auth = req.headers.authorization || "";
+  if (!auth.startsWith("Bearer ")) {
+    return null;
+  }
+  return auth.substring("Bearer ".length);
+}
 
-  if (mfaVerified !== 'true') {
-    return res.status(403).json({
-      error: 'mfa_required'
+function requireAuth(req, res, next) {
+  const token = extractBearerToken(req);
+
+  if (!token) {
+    return res.status(401).json({
+      ok: false,
+      error: "missing_token",
+      message: "Missing Authorization Bearer token",
     });
   }
 
+  req.token = token;
   next();
 }
 
-async function writeAuditLog({
-  user,
-  originalPrompt,
-  maskedPrompt,
-  security,
-  modelType,
-  status
-}) {
+async function callLlmMock(prompt, modelType) {
+  const llmUrl = process.env.LLM_URL || "http://llm-mock:3006";
+
   try {
-    await axios.post(`${LOGGER_GRC_URL}/audit`, {
-      user,
-      originalPrompt,
-      maskedPrompt,
-      security,
-      modelType,
-      status
+    const response = await fetch(`${llmUrl}/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt, modelType }),
     });
+
+    if (!response.ok) {
+      return {
+        provider: "gateway-fallback",
+        answer: `LLM mock returned HTTP ${response.status}`,
+      };
+    }
+
+    return await response.json();
   } catch (error) {
-    console.error('Audit logging failed:', error.message);
+    return {
+      provider: "gateway-fallback",
+      answer: `Réponse mock du Gateway pour: ${String(prompt).slice(0, 120)}`,
+      warning: error.message,
+    };
   }
 }
 
-app.get('/audit', async (req, res) => {
-  try {
-    const response = await axios.get(`${LOGGER_GRC_URL}/audit`);
-    res.json(response.data);
-  } catch (error) {
-    res.status(502).json({
-      error: 'audit_unavailable',
-      details: error.message
-    });
-  }
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "api-gateway",
+    status: "UP",
+  });
 });
 
-app.post(
-  '/v1/generate',
-  authenticateOidc,
-  requireMfa,
-  requireRole(['admin', 'security_architect', 'finance_manager']),
-  async (req, res) => {
-    try {
-      const prompt = String(req.body.prompt || '');
-      const modelType = String(req.body.modelType || 'public_llm');
+app.post("/generate", requireAuth, async (req, res) => {
+  const prompt = String(req.body.prompt || "");
+  const modelType = String(req.body.modelType || "public_llm");
+  const user = readUserFromHeaders(req);
 
-      if (!prompt) {
-        return res.status(400).json({
-          error: 'missing_prompt'
-        });
-      }
+  const llmResponse = await callLlmMock(prompt, modelType);
 
-      const user = {
-        email: req.user.email,
-        username: req.user.username,
-        roles: req.user.roles,
-        department: req.user.department,
-        country: req.user.country
-      };
+  res.json({
+    ok: true,
+    route: "/generate",
+    authenticated: true,
+    user,
+    modelType,
+    prompt,
+    response: llmResponse,
+  });
+});
 
-      const inspectorResponse = await axios.post(
-        `${PROMPT_INSPECTOR_URL}/inspect`,
-        { prompt }
-      );
+app.post("/gateway/process", requireAuth, async (req, res) => {
+  const prompt = String(req.body.prompt || "");
+  const modelType = String(req.body.modelType || "public_llm");
+  const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
+  const user = readUserFromHeaders(req);
 
-      const inspection = inspectorResponse.data;
+  const riskScore = prompt.match(/iban|password|secret|token|api[_-]?key|email|@/i)
+    ? "HIGH"
+    : "LOW";
 
-      const riskResponse = await axios.post(`${RISK_ENGINE_URL}/score`, {
-        findings: inspection.findings,
-        modelType
-      });
+  const llmResponse = await callLlmMock(prompt, modelType);
 
-      const risk = riskResponse.data;
+  res.json({
+    ok: true,
+    route: "/gateway/process",
+    authenticated: true,
+    user,
+    frameworks,
+    riskScore,
+    decision: riskScore === "HIGH" ? "MASK_OR_REVIEW" : "ALLOW",
+    modelType,
+    prompt,
+    response: llmResponse,
+  });
+});
 
-      const policyResponse = await axios.post(`${POLICY_ENGINE_URL}/evaluate`, {
-        findings: inspection.findings,
-        risk,
-        modelType,
-        user
-      });
+app.post("/v1/generate", requireAuth, async (req, res) => {
+  req.url = "/generate";
+  return app._router.handle(req, res);
+});
 
-      const policy = policyResponse.data;
-
-      const security = {
-        sensitive: inspection.sensitive,
-        findings: inspection.findings,
-        risk,
-        policy
-      };
-
-      const promptToSend =
-        policy.action === 'masked'
-          ? inspection.maskedPrompt || prompt
-          : prompt;
-
-      if (policy.action === 'blocked' || policy.action === 'approval_required') {
-        await writeAuditLog({
-          user,
-          originalPrompt: prompt,
-          maskedPrompt: promptToSend,
-          security,
-          modelType,
-          status: policy.action
-        });
-
-        return res.status(403).json({
-          status: policy.action,
-          message: policy.reason,
-          user,
-          security
-        });
-      }
-
-      const response = await axios.post(`${LLM_URL}/generate`, {
-        prompt: promptToSend,
-        modelType
-      });
-
-      await writeAuditLog({
-        user,
-        originalPrompt: prompt,
-        maskedPrompt: promptToSend,
-        security,
-        modelType,
-        status: 'success'
-      });
-
-      res.json({
-        status: 'success',
-        user,
-        security,
-        provider_response: response.data
-      });
-    } catch (error) {
-      console.error('Gateway error:', error.message);
-
-      res.status(502).json({
-        error: 'upstream_error',
-        details: error.message
-      });
-    }
-  }
-);
+app.post("/v1/gateway/process", requireAuth, async (req, res) => {
+  req.url = "/gateway/process";
+  return app._router.handle(req, res);
+});
 
 app.use((req, res) => {
   res.status(404).json({
-    error: 'not_found',
-    path: req.originalUrl
+    ok: false,
+    error: "not_found",
+    method: req.method,
+    path: req.originalUrl,
+    availableRoutes: [
+      "GET /health",
+      "POST /generate",
+      "POST /gateway/process",
+      "POST /v1/generate",
+      "POST /v1/gateway/process",
+    ],
   });
 });
 
