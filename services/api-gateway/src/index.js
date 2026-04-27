@@ -5,6 +5,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+const KEYCLOAK_URL = process.env.KEYCLOAK_URL || "http://keycloak:8080";
+const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
+const KEYCLOAK_CLIENT_ID =
+  process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
+const KEYCLOAK_CLIENT_SECRET =
+  process.env.KEYCLOAK_CLIENT_SECRET || "3INFgP4sBfB4bYpCRecxT2ZeamgONzCh";
+
 function readUserFromHeaders(req) {
   return {
     email: req.headers["x-user-email"] || "admin@cidns.eu",
@@ -17,12 +24,7 @@ function readUserFromHeaders(req) {
 
 function extractBearerToken(req) {
   const auth = req.headers.authorization || "";
-
-  if (!auth.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return auth.substring("Bearer ".length);
+  return auth.startsWith("Bearer ") ? auth.substring("Bearer ".length) : null;
 }
 
 function requireAuth(req, res, next) {
@@ -49,10 +51,7 @@ async function callLlmMock(prompt, modelType) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        prompt,
-        modelType,
-      }),
+      body: JSON.stringify({ prompt, modelType }),
     });
 
     if (!response.ok) {
@@ -128,6 +127,7 @@ app.get("/", (req, res) => {
     availableRoutes: [
       "GET /",
       "GET /health",
+      "POST /login/keycloak",
       "POST /generate",
       "POST /gateway/process",
       "POST /v1/generate",
@@ -142,6 +142,63 @@ app.get("/health", (req, res) => {
     service: "api-gateway",
     status: "UP",
   });
+});
+
+app.post("/login/keycloak", async (req, res) => {
+  const username = req.body.username || req.body.email;
+  const password = req.body.password;
+
+  if (!username || !password) {
+    return res.status(400).json({
+      ok: false,
+      error: "missing_credentials",
+      message: "username/email and password are required",
+    });
+  }
+
+  try {
+    const response = await fetch(
+      `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "password",
+          client_id: KEYCLOAK_CLIENT_ID,
+          client_secret: KEYCLOAK_CLIENT_SECRET,
+          username,
+          password,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        ok: false,
+        error: "keycloak_login_failed",
+        details: data,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      token_type: data.token_type,
+      expires_in: data.expires_in,
+      scope: data.scope,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: "keycloak_unreachable",
+      message: error.message,
+    });
+  }
 });
 
 app.post("/generate", requireAuth, async (req, res) => {
@@ -169,6 +226,7 @@ app.use((req, res) => {
     availableRoutes: [
       "GET /",
       "GET /health",
+      "POST /login/keycloak",
       "POST /generate",
       "POST /gateway/process",
       "POST /v1/generate",
