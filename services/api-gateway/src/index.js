@@ -17,9 +17,11 @@ function readUserFromHeaders(req) {
 
 function extractBearerToken(req) {
   const auth = req.headers.authorization || "";
+
   if (!auth.startsWith("Bearer ")) {
     return null;
   }
+
   return auth.substring("Bearer ".length);
 }
 
@@ -47,7 +49,10 @@ async function callLlmMock(prompt, modelType) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt, modelType }),
+      body: JSON.stringify({
+        prompt,
+        modelType,
+      }),
     });
 
     if (!response.ok) {
@@ -67,47 +72,43 @@ async function callLlmMock(prompt, modelType) {
   }
 }
 
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    service: "api-gateway",
-    status: "UP",
-  });
-});
+function calculateRiskScore(prompt) {
+  const sensitivePattern =
+    /iban|password|secret|token|api[_-]?key|email|@|client|confidentiel|salaire|salary|contrat|contract/i;
 
-app.post("/generate", requireAuth, async (req, res) => {
+  return sensitivePattern.test(prompt) ? "HIGH" : "LOW";
+}
+
+async function handleGenerate(req, res, routeName) {
   const prompt = String(req.body.prompt || "");
   const modelType = String(req.body.modelType || "public_llm");
   const user = readUserFromHeaders(req);
 
   const llmResponse = await callLlmMock(prompt, modelType);
 
-  res.json({
+  return res.json({
     ok: true,
-    route: "/generate",
+    route: routeName,
     authenticated: true,
     user,
     modelType,
     prompt,
     response: llmResponse,
   });
-});
+}
 
-app.post("/gateway/process", requireAuth, async (req, res) => {
+async function handleGatewayProcess(req, res, routeName) {
   const prompt = String(req.body.prompt || "");
   const modelType = String(req.body.modelType || "public_llm");
   const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
   const user = readUserFromHeaders(req);
 
-  const riskScore = prompt.match(/iban|password|secret|token|api[_-]?key|email|@/i)
-    ? "HIGH"
-    : "LOW";
-
+  const riskScore = calculateRiskScore(prompt);
   const llmResponse = await callLlmMock(prompt, modelType);
 
-  res.json({
+  return res.json({
     ok: true,
-    route: "/gateway/process",
+    route: routeName,
     authenticated: true,
     user,
     frameworks,
@@ -117,16 +118,46 @@ app.post("/gateway/process", requireAuth, async (req, res) => {
     prompt,
     response: llmResponse,
   });
+}
+
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "api-gateway",
+    message: "AI Secure Gateway API",
+    availableRoutes: [
+      "GET /",
+      "GET /health",
+      "POST /generate",
+      "POST /gateway/process",
+      "POST /v1/generate",
+      "POST /v1/gateway/process",
+    ],
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "api-gateway",
+    status: "UP",
+  });
+});
+
+app.post("/generate", requireAuth, async (req, res) => {
+  return handleGenerate(req, res, "/generate");
+});
+
+app.post("/gateway/process", requireAuth, async (req, res) => {
+  return handleGatewayProcess(req, res, "/gateway/process");
 });
 
 app.post("/v1/generate", requireAuth, async (req, res) => {
-  req.url = "/generate";
-  return app._router.handle(req, res);
+  return handleGenerate(req, res, "/v1/generate");
 });
 
 app.post("/v1/gateway/process", requireAuth, async (req, res) => {
-  req.url = "/gateway/process";
-  return app._router.handle(req, res);
+  return handleGatewayProcess(req, res, "/v1/gateway/process");
 });
 
 app.use((req, res) => {
@@ -136,6 +167,7 @@ app.use((req, res) => {
     method: req.method,
     path: req.originalUrl,
     availableRoutes: [
+      "GET /",
       "GET /health",
       "POST /generate",
       "POST /gateway/process",
