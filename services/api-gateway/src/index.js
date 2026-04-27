@@ -10,7 +10,7 @@ const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
 const KEYCLOAK_CLIENT_ID =
   process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
 const KEYCLOAK_CLIENT_SECRET =
-  process.env.KEYCLOAK_CLIENT_SECRET || "3INFgP4sBfB4bYpCRecxT2ZeamgONzCh";
+  process.env.KEYCLOAK_CLIENT_SECRET || "99w8qu4PWRK1e13TCSVISO8Y2uXY1GoM";
 
 function readUserFromHeaders(req) {
   return {
