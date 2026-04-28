@@ -1,53 +1,96 @@
 import { useState } from "react";
 
-const API_BASE = window.location.origin.replace("-5173", "-8080");
+function getApiBase() {
+  const origin = window.location.origin;
+
+  // GitHub Codespaces: ...-5173.app.github.dev -> ...-8080.app.github.dev
+  if (origin.includes("-5173.app.github.dev")) {
+    return origin.replace("-5173.app.github.dev", "-8080.app.github.dev");
+  }
+
+  // Local dev fallback
+  if (origin.includes(":5173")) {
+    return origin.replace(":5173", ":8080");
+  }
+
+  return "http://localhost:8080";
+}
+
+const API_BASE = getApiBase();
+console.log("API_BASE =", API_BASE);
 
 export default function App() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin");
   const [token, setToken] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(
+    "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225"
+  );
   const [result, setResult] = useState("");
+  const [status, setStatus] = useState("");
 
-  // ========================
-  // LOGIN KEYCLOAK
-  // ========================
   const handleLogin = async () => {
+    setStatus("Connexion à Keycloak...");
+    setResult("");
+
     try {
       const res = await fetch(`${API_BASE}/login/keycloak`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        mode: "cors",
         body: JSON.stringify({
           username,
           password,
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
 
       if (!res.ok) {
+        setStatus("Login failed");
+        setResult(JSON.stringify(data, null, 2));
         alert("Login failed: " + JSON.stringify(data));
         return;
       }
 
       setToken(data.access_token);
-      alert("Login OK ✅");
+      setStatus("Login OK ✅");
+      setResult(JSON.stringify({ ok: true, message: "Login OK", api: API_BASE }, null, 2));
     } catch (err) {
-      console.error(err);
-      alert("Erreur connexion API");
+      console.error("LOGIN ERROR:", err);
+      setStatus("Erreur connexion API");
+      setResult(
+        JSON.stringify(
+          {
+            ok: false,
+            error: "Erreur connexion API",
+            message: err.message,
+            api: API_BASE,
+          },
+          null,
+          2
+        )
+      );
+      alert("Erreur connexion API: " + err.message + "\nAPI_BASE=" + API_BASE);
     }
   };
 
-  // ========================
-  // ANALYSE PROMPT
-  // ========================
   const handleAnalyze = async () => {
     if (!token) {
       alert("Login first !");
       return;
     }
+
+    setStatus("Analyse en cours...");
 
     try {
       const res = await fetch(`${API_BASE}/v1/gateway/process`, {
@@ -61,6 +104,7 @@ export default function App() {
           "X-User-Country": "BE",
           "X-MFA-Verified": "true",
         },
+        mode: "cors",
         body: JSON.stringify({
           prompt,
           modelType: "public_llm",
@@ -68,12 +112,32 @@ export default function App() {
         }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data;
 
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
+
+      setStatus(res.ok ? "Analyse OK ✅" : "Analyse failed");
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
-      console.error(err);
-      alert("Erreur analyse");
+      console.error("ANALYZE ERROR:", err);
+      setStatus("Erreur analyse");
+      setResult(
+        JSON.stringify(
+          {
+            ok: false,
+            error: "Erreur analyse",
+            message: err.message,
+            api: API_BASE,
+          },
+          null,
+          2
+        )
+      );
     }
   };
 
@@ -86,7 +150,14 @@ export default function App() {
         policy enforcement and audit trail.
       </p>
 
-      {/* LOGIN */}
+      <p>
+        <strong>API:</strong> {API_BASE}
+      </p>
+
+      <p>
+        <strong>Status:</strong> {status || "Ready"}
+      </p>
+
       <div style={{ marginTop: 30 }}>
         <h2>Keycloak Login</h2>
 
@@ -108,7 +179,6 @@ export default function App() {
         <button onClick={handleLogin}>Login with Keycloak</button>
       </div>
 
-      {/* PROMPT */}
       <div style={{ marginTop: 30 }}>
         <textarea
           rows="6"
@@ -123,7 +193,6 @@ export default function App() {
         Analyze & Send Prompt
       </button>
 
-      {/* RESULT */}
       <pre
         style={{
           marginTop: 20,
