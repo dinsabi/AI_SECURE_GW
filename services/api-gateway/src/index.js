@@ -26,10 +26,7 @@ const PORT = process.env.PORT || 3000;
 
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL || "http://keycloak:8080";
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
-const KEYCLOAK_CLIENT_ID =
-  process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
-const KEYCLOAK_CLIENT_SECRET =
-  process.env.KEYCLOAK_CLIENT_SECRET || "99w8qu4PWRK1e13TCSVISO8Y2uXY1GoM";
+const KEYCLOAK_CLIENT_ID = process.env.KEYCLOAK_CLIENT_ID || "admin-cli";
 
 function readUserFromHeaders(req) {
   return {
@@ -160,6 +157,11 @@ app.get("/health", (req, res) => {
     ok: true,
     service: "api-gateway",
     status: "UP",
+    keycloak: {
+      url: KEYCLOAK_URL,
+      realm: KEYCLOAK_REALM,
+      clientId: KEYCLOAK_CLIENT_ID,
+    },
   });
 });
 
@@ -176,6 +178,12 @@ app.post("/login/keycloak", async (req, res) => {
   }
 
   try {
+    const params = new URLSearchParams();
+    params.append("grant_type", "password");
+    params.append("client_id", KEYCLOAK_CLIENT_ID);
+    params.append("username", username);
+    params.append("password", password);
+
     const response = await fetch(
       `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`,
       {
@@ -183,13 +191,7 @@ app.post("/login/keycloak", async (req, res) => {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({
-          grant_type: "password",
-          client_id: KEYCLOAK_CLIENT_ID,
-          client_secret: KEYCLOAK_CLIENT_SECRET,
-          username,
-          password,
-        }),
+        body: params,
       }
     );
 
@@ -209,6 +211,7 @@ app.post("/login/keycloak", async (req, res) => {
       refresh_token: data.refresh_token,
       token_type: data.token_type,
       expires_in: data.expires_in,
+      refresh_expires_in: data.refresh_expires_in,
       scope: data.scope,
     });
   } catch (error) {
@@ -256,4 +259,7 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`api-gateway ready on port ${PORT}`);
+  console.log(`Keycloak URL: ${KEYCLOAK_URL}`);
+  console.log(`Keycloak realm: ${KEYCLOAK_REALM}`);
+  console.log(`Keycloak client: ${KEYCLOAK_CLIENT_ID}`);
 });
