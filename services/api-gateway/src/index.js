@@ -2,6 +2,24 @@ import express from "express";
 import cors from "cors";
 
 const app = express();
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-User-Email",
+      "X-User-Department",
+      "X-User-Roles",
+      "X-User-Country",
+      "X-MFA-Verified",
+    ],
+  })
+);
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
