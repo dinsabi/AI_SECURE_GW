@@ -22,7 +22,7 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: aigw
       KEYCLOAK_CLIENT_ID: ai-secure-gateway
-      KEYCLOAK_CLIENT_SECRET: CHANGE_ME_AFTER_CREATION
+      // KEYCLOAK_CLIENT_SECRET: CHANGE_ME_AFTER_CREATION
       LLM_URL: http://llm-mock:3006
       PROMPT_INSPECTOR_URL: http://prompt-inspector:3001
       RISK_ENGINE_URL: http://risk-engine:3002
