@@ -178,24 +178,36 @@ app.post("/login/keycloak", async (req, res) => {
   }
 
   try {
-    const params = new URLSearchParams();
-    params.append("grant_type", "password");
-    params.append("client_id", KEYCLOAK_CLIENT_ID);
-    params.append("username", username);
-    params.append("password", password);
+    const formBody =
+      `grant_type=password` +
+      `&client_id=${encodeURIComponent(KEYCLOAK_CLIENT_ID)}` +
+      `&username=${encodeURIComponent(username)}` +
+      `&password=${encodeURIComponent(password)}`;
 
-    const response = await fetch(
-      `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: params.toString(),
-      }
-    );
+    const tokenUrl = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
 
-    const data = await response.json();
+    console.log("Calling Keycloak:", tokenUrl);
+    console.log("Client ID:", KEYCLOAK_CLIENT_ID);
+    console.log("Form body:", formBody.replace(password, "******"));
+
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(formBody).toString(),
+      },
+      body: formBody,
+    });
+
+    const text = await response.text();
+    console.log("Keycloak response:", response.status, text);
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
 
     if (!response.ok) {
       return res.status(response.status).json({
@@ -215,10 +227,13 @@ app.post("/login/keycloak", async (req, res) => {
       scope: data.scope,
     });
   } catch (error) {
+    console.error("Keycloak fetch error:", error);
+
     return res.status(500).json({
       ok: false,
       error: "keycloak_unreachable",
       message: error.message,
+      cause: error.cause?.message,
     });
   }
 });
