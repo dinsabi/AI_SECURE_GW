@@ -40,7 +40,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
-    command: start-dev
+    command: start-dev --import-realm
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -50,6 +50,7 @@ services:
       - "8081:8080"
     volumes:
       - keycloak_data:/opt/keycloak/data
+      - ./infra/keycloak/import:/opt/keycloak/data/import
 
   postgres:
     image: postgres:16-alpine
