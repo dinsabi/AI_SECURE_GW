@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { protectPrompt } from "./dataProtectionEngine.js";
 
 const app = express();
 
@@ -24,15 +25,11 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// 👉 IMPORTANT : accès fiable depuis Docker
-const KEYCLOAK_URL =
-  process.env.KEYCLOAK_URL || "http://keycloak:8080";
-
+const KEYCLOAK_URL = process.env.KEYCLOAK_URL || "http://keycloak:8080";
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
 const KEYCLOAK_CLIENT_ID =
   process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
-const KEYCLOAK_CLIENT_SECRET =
-  process.env.KEYCLOAK_CLIENT_SECRET || "";
+const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET || "";
 
 function readUserFromHeaders(req) {
   return {
@@ -56,6 +53,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({
       ok: false,
       error: "missing_token",
+      message: "Missing Authorization Bearer token",
     });
   }
 
@@ -75,51 +73,74 @@ async function callLlmMock(prompt, modelType) {
       body: JSON.stringify({ prompt, modelType }),
     });
 
+    if (!response.ok) {
+      return {
+        provider: "gateway-fallback",
+        answer: `LLM mock returned HTTP ${response.status}`,
+      };
+    }
+
     return await response.json();
   } catch (error) {
     return {
-      provider: "fallback",
+      provider: "gateway-fallback",
       answer: "LLM indisponible",
+      warning: error.message,
     };
   }
 }
 
-// ========================
-// 🔐 MASQUAGE DONNÉES
-// ========================
-function maskSensitiveData(text) {
-  return String(text)
-    // EMAIL
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL_MASKED]")
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "api-gateway",
+    message: "AI Secure Gateway API",
+    availableRoutes: [
+      "GET /",
+      "GET /health",
+      "POST /login/keycloak",
+      "POST /generate",
+      "POST /gateway/process",
+      "POST /v1/generate",
+      "POST /v1/gateway/process",
+    ],
+  });
+});
 
-    // IBAN BE
-    .replace(/\bBE\d{2}(?:\s?\d{4}){3}\b/g, "[IBAN_MASKED]")
+app.get("/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "api-gateway",
+    status: "UP",
+    keycloak: {
+      url: KEYCLOAK_URL,
+      realm: KEYCLOAK_REALM,
+      clientId: KEYCLOAK_CLIENT_ID,
+    },
+  });
+});
 
-    // IBAN générique
-    .replace(/\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b/g, "[IBAN_MASKED]");
-}
-
-// ========================
-// 🎯 RISK ENGINE
-// ========================
-function calculateRiskScore(prompt) {
-  const sensitivePattern =
-    /iban|password|secret|token|api[_-]?key|email|@|client|confidentiel|salaire|contract/i;
-
-  return sensitivePattern.test(prompt) ? "HIGH" : "LOW";
-}
-
-// ========================
-// 🔐 LOGIN KEYCLOAK
-// ========================
 app.post("/login/keycloak", async (req, res) => {
-  const { username, password } = req.body;
+  const username = req.body.username || req.body.email;
+  const password = req.body.password;
+
+  if (!username || !password) {
+    return res.status(400).json({
+      ok: false,
+      error: "missing_credentials",
+      message: "username/email and password are required",
+    });
+  }
 
   try {
     const params = new URLSearchParams();
     params.append("grant_type", "password");
     params.append("client_id", KEYCLOAK_CLIENT_ID);
-    params.append("client_secret", KEYCLOAK_CLIENT_SECRET);
+
+    if (KEYCLOAK_CLIENT_SECRET) {
+      params.append("client_secret", KEYCLOAK_CLIENT_SECRET);
+    }
+
     params.append("username", username);
     params.append("password", password);
 
@@ -144,57 +165,182 @@ app.post("/login/keycloak", async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       ok: true,
       access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      token_type: data.token_type,
+      expires_in: data.expires_in,
+      refresh_expires_in: data.refresh_expires_in,
+      scope: data.scope,
     });
-  } catch (err) {
-    res.status(500).json({
+  } catch (error) {
+    return res.status(500).json({
       ok: false,
       error: "keycloak_unreachable",
-      message: err.message,
+      message: error.message,
     });
   }
 });
 
-// ========================
-// 🚀 GATEWAY PRINCIPAL
-// ========================
-app.post("/v1/gateway/process", requireAuth, async (req, res) => {
+app.post("/generate", requireAuth, async (req, res) => {
   const prompt = req.body.prompt || "";
   const modelType = req.body.modelType || "public_llm";
-  const user = readUserFromHeaders(req);
 
-  const riskScore = calculateRiskScore(prompt);
+  const protection = protectPrompt(prompt, {
+    modelType,
+    department: "Unknown",
+    roles: "user",
+    country: "BE",
+    mfaVerified: "false",
+  });
 
-  // 🔥 MASQUAGE SI RISQUE
-  const maskedPrompt =
-    riskScore === "HIGH" ? maskSensitiveData(prompt) : prompt;
+  const llmResponse = await callLlmMock(protection.protectedText, modelType);
 
-  const llmResponse = await callLlmMock(maskedPrompt, modelType);
-
-  res.json({
+  return res.json({
     ok: true,
+    route: "/generate",
     authenticated: true,
-    user,
-    riskScore,
-    decision: riskScore === "HIGH" ? "MASK_OR_REVIEW" : "ALLOW",
-
-    // 👉 IMPORTANT POUR DEBUG / DEMO
-    originalPrompt: prompt,
-    maskedPrompt: maskedPrompt,
-
+    modelType,
+    decision: protection.decision,
+    riskScore: protection.score,
+    riskLevel: protection.riskLevel,
+    originalPrompt: protection.originalText,
+    protectedPrompt: protection.protectedText,
+    findings: protection.findings,
+    tokenMap: protection.tokenMap,
     response: llmResponse,
   });
 });
 
-// ========================
-// HEALTH
-// ========================
-app.get("/health", (req, res) => {
-  res.json({ ok: true });
+app.post("/gateway/process", requireAuth, async (req, res) => {
+  return processGatewayRequest(req, res, "/gateway/process");
+});
+
+app.post("/v1/generate", requireAuth, async (req, res) => {
+  const prompt = req.body.prompt || "";
+  const modelType = req.body.modelType || "public_llm";
+
+  const protection = protectPrompt(prompt, {
+    modelType,
+    department: "Unknown",
+    roles: "user",
+    country: "BE",
+    mfaVerified: "false",
+  });
+
+  const llmResponse = await callLlmMock(protection.protectedText, modelType);
+
+  return res.json({
+    ok: true,
+    route: "/v1/generate",
+    authenticated: true,
+    modelType,
+    decision: protection.decision,
+    riskScore: protection.score,
+    riskLevel: protection.riskLevel,
+    originalPrompt: protection.originalText,
+    protectedPrompt: protection.protectedText,
+    findings: protection.findings,
+    tokenMap: protection.tokenMap,
+    response: llmResponse,
+  });
+});
+
+app.post("/v1/gateway/process", requireAuth, async (req, res) => {
+  return processGatewayRequest(req, res, "/v1/gateway/process");
+});
+
+async function processGatewayRequest(req, res, routeName) {
+  const prompt = req.body.prompt || "";
+  const modelType = req.body.modelType || "public_llm";
+  const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
+  const user = readUserFromHeaders(req);
+
+  const protection = protectPrompt(prompt, {
+    modelType,
+    department: user.department,
+    roles: user.roles,
+    country: user.country,
+    mfaVerified: user.mfaVerified,
+  });
+
+  if (protection.decision === "BLOCK_OR_APPROVAL") {
+    return res.status(403).json({
+      ok: false,
+      route: routeName,
+      authenticated: true,
+      user,
+      frameworks,
+      modelType,
+      decision: protection.decision,
+      riskScore: protection.score,
+      riskLevel: protection.riskLevel,
+      originalPrompt: protection.originalText,
+      protectedPrompt: protection.protectedText,
+      findings: protection.findings,
+      businessHits: protection.businessHits,
+      tokenMap: protection.tokenMap,
+      message:
+        "Prompt blocked or requires approval before being sent to a public LLM.",
+      grc: {
+        nis2: true,
+        gdpr: true,
+        iso27001: true,
+        auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
+      },
+    });
+  }
+
+  const llmResponse = await callLlmMock(protection.protectedText, modelType);
+
+  return res.json({
+    ok: true,
+    route: routeName,
+    authenticated: true,
+    user,
+    frameworks,
+    modelType,
+    decision: protection.decision,
+    riskScore: protection.score,
+    riskLevel: protection.riskLevel,
+    originalPrompt: protection.originalText,
+    protectedPrompt: protection.protectedText,
+    findings: protection.findings,
+    businessHits: protection.businessHits,
+    tokenMap: protection.tokenMap,
+    stats: protection.stats,
+    response: llmResponse,
+    grc: {
+      nis2: true,
+      gdpr: true,
+      iso27001: true,
+      auditEvent: "AI_PROMPT_SECURITY_CHECK",
+    },
+  });
+}
+
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "not_found",
+    method: req.method,
+    path: req.originalUrl,
+    availableRoutes: [
+      "GET /",
+      "GET /health",
+      "POST /login/keycloak",
+      "POST /generate",
+      "POST /gateway/process",
+      "POST /v1/generate",
+      "POST /v1/gateway/process",
+    ],
+  });
 });
 
 app.listen(PORT, () => {
-  console.log("API Gateway ready on port " + PORT);
+  console.log(`api-gateway ready on port ${PORT}`);
+  console.log(`Keycloak URL: ${KEYCLOAK_URL}`);
+  console.log(`Keycloak realm: ${KEYCLOAK_REALM}`);
+  console.log(`Keycloak client: ${KEYCLOAK_CLIENT_ID}`);
 });
