@@ -31,7 +31,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 const PORT = process.env.PORT || 3000;
 
@@ -229,7 +229,7 @@ app.post(
 
       const modelType = req.body.modelType || "public_llm";
       const frameworks = req.body.frameworks
-        ? String(req.body.frameworks).split(",")
+        ? String(req.body.frameworks).split(",").map((x) => x.trim())
         : ["NIS2", "GDPR", "ISO27001"];
 
       const user = readUserFromHeaders(req);
@@ -257,6 +257,7 @@ app.post(
         decision: result.decision,
         riskScore: result.riskScore,
         riskLevel: result.riskLevel,
+        originalText: result.originalText,
         protectedText: result.protectedText,
         findings: result.findings,
         businessHits: result.businessHits,

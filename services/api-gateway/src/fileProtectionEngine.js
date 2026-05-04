@@ -6,6 +6,10 @@ export async function extractTextFromFile(file) {
   const mimeType = file.mimetype || "";
   const buffer = file.buffer;
 
+  if (!buffer) {
+    throw new Error("File buffer is empty.");
+  }
+
   if (
     mimeType.includes("text") ||
     fileName.endsWith(".txt") ||
@@ -38,10 +42,11 @@ export async function protectUploadedFile(file, context = {}) {
     mimeType: file.mimetype,
     size: file.size,
     extractedTextLength: extractedText.length,
+    originalText: protection.originalText,
+    protectedText: protection.protectedText,
     decision: protection.decision,
     riskScore: protection.score,
     riskLevel: protection.riskLevel,
-    protectedText: protection.protectedText,
     findings: protection.findings,
     businessHits: protection.businessHits,
     tokenMap: protection.tokenMap,

@@ -14,12 +14,14 @@ export function protectPrompt(input, context = {}) {
   function register(type, value, severity = "MEDIUM") {
     const token = nextToken(type);
     tokenMap[token] = value;
+
     findings.push({
       type,
       token,
       severity,
       originalLength: value.length,
     });
+
     return token;
   }
 
@@ -30,11 +32,12 @@ export function protectPrompt(input, context = {}) {
   }
 
   // =========================
-  // PII / GDPR
+  // PII / GDPR / NIS2
   // =========================
+
   replacePattern(
     "EMAIL",
-    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
     "HIGH"
   );
 
@@ -45,27 +48,57 @@ export function protectPrompt(input, context = {}) {
   );
 
   replacePattern(
-    "NATIONAL_ID_BE",
+    "NISS_BE",
     /\b\d{2}[.\s-]?\d{2}[.\s-]?\d{2}[.\s-]?\d{3}[.\s-]?\d{2}\b/g,
     "HIGH"
   );
 
   replacePattern(
+    "DATE_OF_BIRTH",
+    /\b(?:né le|née le|date de naissance|birth date|dob)\s*[:\-]?\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
     "DATE",
-    /\b(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/g,
+    /\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g,
     "LOW"
   );
 
-  // Nom simple après mots déclencheurs
   replacePattern(
     "PERSON",
-    /\b(?:Monsieur|Madame|Mr|Mrs|Mme|M\.|Client|Utilisateur)\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+)?\b/g,
+    /\b(?:Monsieur|Madame|Mr|Mrs|Mme|M\.|Client|Utilisateur|Employé|Employee)\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+)?\b/g,
+    "MEDIUM"
+  );
+
+  replacePattern(
+    "PASSPORT",
+    /\b(?:passport|passeport)\s*[:#-]?\s*[A-Z0-9]{6,12}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "DRIVING_LICENSE",
+    /\b(?:permis|driving licence|driver license)\s*[:#-]?\s*[A-Z0-9-]{6,15}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "LICENSE_PLATE",
+    /\b[1-9]-[A-Z]{3}-\d{3}\b/g,
+    "MEDIUM"
+  );
+
+  replacePattern(
+    "ADDRESS",
+    /\b(?:rue|avenue|av\.|boulevard|bd|chaussée|straat|laan|road|street)\s+[A-ZÀ-Ÿa-zà-ÿ0-9' -]+(?:\s+\d{1,4})?\b/gi,
     "MEDIUM"
   );
 
   // =========================
   // Financial
   // =========================
+
   replacePattern(
     "IBAN",
     /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b/g,
@@ -84,9 +117,62 @@ export function protectPrompt(input, context = {}) {
     "CRITICAL"
   );
 
+  replacePattern(
+    "BANK_ACCOUNT",
+    /\b(?:compte bancaire|bank account|account number|numero de compte|numéro de compte)\s*[:#-]?\s*[A-Z0-9\s-]{8,34}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "SALARY",
+    /\b(?:salaire|salary|rémunération|remuneration)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:€|EUR|euro|euros)?\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "REVENUE",
+    /\b(?:chiffre d'affaires|revenue|turnover|CA)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:€|EUR|k€|M€|million|millions)?\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "MARGIN",
+    /\b(?:marge|margin|gross margin|net margin)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:%|€|EUR)?\b/gi,
+    "HIGH"
+  );
+
   // =========================
-  // Secrets / Credentials
+  // Business sensitive / NIS2
   // =========================
+
+  replacePattern(
+    "CLIENT_NAME",
+    /\b(?:client|customer|fournisseur|supplier|partner|partenaire)\s*[:=]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&' .-]{2,60}\b/g,
+    "HIGH"
+  );
+
+  replacePattern(
+    "CONTRACT_NUMBER",
+    /\b(?:contrat|contract|agreement|marché|tender)\s*(?:n°|no|number|#|:)?\s*[A-Z0-9-]{4,30}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "PRICING",
+    /\b(?:pricing|prix|tarif|tarification|price list|offre commerciale)\s*[:=]?\s*[A-Za-z0-9€%.,\s-]{3,80}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "ROADMAP",
+    /\b(?:roadmap|feuille de route|stratégie|strategy|business plan|plan stratégique)\b[\s\S]{0,120}/gi,
+    "HIGH"
+  );
+
+  // =========================
+  // Secrets / Credentials / ISO27001
+  // =========================
+
   replacePattern(
     "API_KEY",
     /\b(?:sk-[A-Za-z0-9]{20,}|pk-[A-Za-z0-9]{20,}|api[_-]?key\s*[:=]\s*[A-Za-z0-9_\-]{12,})\b/gi,
@@ -96,6 +182,12 @@ export function protectPrompt(input, context = {}) {
   replacePattern(
     "JWT",
     /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
+    "CRITICAL"
+  );
+
+  replacePattern(
+    "BEARER_TOKEN",
+    /\bBearer\s+[A-Za-z0-9._-]{20,}\b/g,
     "CRITICAL"
   );
 
@@ -118,8 +210,9 @@ export function protectPrompt(input, context = {}) {
   );
 
   // =========================
-  // Technical Infrastructure
+  // Infrastructure / NIS2
   // =========================
+
   replacePattern(
     "PRIVATE_IP",
     /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})\b/g,
@@ -139,13 +232,21 @@ export function protectPrompt(input, context = {}) {
   );
 
   // =========================
-  // Business sensitive keywords
+  // Business keywords
   // =========================
+
   const businessKeywords = [
     "confidentiel",
+    "strictement confidentiel",
     "contrat",
     "salaire",
     "salary",
+    "marge",
+    "chiffre d'affaires",
+    "pricing",
+    "roadmap",
+    "stratégie",
+    "business plan",
     "licenciement",
     "client stratégique",
     "offre commerciale",
@@ -156,6 +257,7 @@ export function protectPrompt(input, context = {}) {
     "audit",
     "NIS2",
     "ISO27001",
+    "GDPR",
   ];
 
   const businessHits = businessKeywords.filter((kw) =>
@@ -163,8 +265,9 @@ export function protectPrompt(input, context = {}) {
   );
 
   // =========================
-  // Scoring dynamique
+  // Dynamic scoring
   // =========================
+
   let score = 0;
 
   for (const finding of findings) {
