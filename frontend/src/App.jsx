@@ -3,12 +3,10 @@ import { useState } from "react";
 function getApiBase() {
   const origin = window.location.origin;
 
-  // GitHub Codespaces: ...-5173.app.github.dev -> ...-8080.app.github.dev
   if (origin.includes("-5173.app.github.dev")) {
     return origin.replace("-5173.app.github.dev", "-8080.app.github.dev");
   }
 
-  // Local dev fallback
   if (origin.includes(":5173")) {
     return origin.replace(":5173", ":8080");
   }
@@ -23,11 +21,24 @@ export default function App() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin");
   const [token, setToken] = useState("");
+
   const [prompt, setPrompt] = useState(
     "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225"
   );
+
+  const [file, setFile] = useState(null);
   const [result, setResult] = useState("");
   const [status, setStatus] = useState("");
+
+  const parseResponse = async (res) => {
+    const text = await res.text();
+
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch {
+      return { raw: text };
+    }
+  };
 
   const handleLogin = async () => {
     setStatus("Connexion à Keycloak...");
@@ -46,14 +57,7 @@ export default function App() {
         }),
       });
 
-      const text = await res.text();
-      let data;
-
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = { raw: text };
-      }
+      const data = await parseResponse(res);
 
       if (!res.ok) {
         setStatus("Login failed");
@@ -64,7 +68,17 @@ export default function App() {
 
       setToken(data.access_token);
       setStatus("Login OK ✅");
-      setResult(JSON.stringify({ ok: true, message: "Login OK", api: API_BASE }, null, 2));
+      setResult(
+        JSON.stringify(
+          {
+            ok: true,
+            message: "Login OK",
+            api: API_BASE,
+          },
+          null,
+          2
+        )
+      );
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setStatus("Erreur connexion API");
@@ -84,13 +98,14 @@ export default function App() {
     }
   };
 
-  const handleAnalyze = async () => {
+  const handleAnalyzePrompt = async () => {
     if (!token) {
       alert("Login first !");
       return;
     }
 
-    setStatus("Analyse en cours...");
+    setStatus("Analyse du prompt en cours...");
+    setResult("");
 
     try {
       const res = await fetch(`${API_BASE}/v1/gateway/process`, {
@@ -112,25 +127,74 @@ export default function App() {
         }),
       });
 
-      const text = await res.text();
-      let data;
+      const data = await parseResponse(res);
 
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = { raw: text };
-      }
-
-      setStatus(res.ok ? "Analyse OK ✅" : "Analyse failed");
+      setStatus(res.ok ? "Analyse prompt OK ✅" : "Analyse prompt failed");
       setResult(JSON.stringify(data, null, 2));
     } catch (err) {
-      console.error("ANALYZE ERROR:", err);
-      setStatus("Erreur analyse");
+      console.error("PROMPT ANALYZE ERROR:", err);
+      setStatus("Erreur analyse prompt");
       setResult(
         JSON.stringify(
           {
             ok: false,
-            error: "Erreur analyse",
+            error: "Erreur analyse prompt",
+            message: err.message,
+            api: API_BASE,
+          },
+          null,
+          2
+        )
+      );
+    }
+  };
+
+  const handleAnalyzeFile = async () => {
+    if (!token) {
+      alert("Login first !");
+      return;
+    }
+
+    if (!file) {
+      alert("Sélectionne d’abord un fichier.");
+      return;
+    }
+
+    setStatus("Analyse du fichier uploadé en cours...");
+    setResult("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("modelType", "public_llm");
+      formData.append("frameworks", "NIS2,GDPR,ISO27001");
+
+      const res = await fetch(`${API_BASE}/v1/files/analyze`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-User-Email": username,
+          "X-User-Department": "Finance",
+          "X-User-Roles": "admin,finance_manager",
+          "X-User-Country": "BE",
+          "X-MFA-Verified": "true",
+        },
+        mode: "cors",
+        body: formData,
+      });
+
+      const data = await parseResponse(res);
+
+      setStatus(res.ok ? "Analyse fichier OK ✅" : "Analyse fichier failed");
+      setResult(JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error("FILE ANALYZE ERROR:", err);
+      setStatus("Erreur analyse fichier");
+      setResult(
+        JSON.stringify(
+          {
+            ok: false,
+            error: "Erreur analyse fichier",
             message: err.message,
             api: API_BASE,
           },
@@ -147,7 +211,8 @@ export default function App() {
 
       <p>
         Secure AI access with Keycloak IAM, RBAC, MFA header, risk scoring,
-        policy enforcement and audit trail.
+        policy enforcement, file protection and audit trail for NIS2 / GDPR /
+        ISO27001.
       </p>
 
       <p>
@@ -158,8 +223,10 @@ export default function App() {
         <strong>Status:</strong> {status || "Ready"}
       </p>
 
+      <hr />
+
       <div style={{ marginTop: 30 }}>
-        <h2>Keycloak Login</h2>
+        <h2>1. Keycloak Login</h2>
 
         <input
           placeholder="username"
@@ -179,7 +246,16 @@ export default function App() {
         <button onClick={handleLogin}>Login with Keycloak</button>
       </div>
 
+      <hr style={{ marginTop: 30 }} />
+
       <div style={{ marginTop: 30 }}>
+        <h2>2. Prompt Protection</h2>
+
+        <p>
+          Détection et tokenisation des emails, IBAN, mots de passe, clés API,
+          IP internes, secrets et données sensibles avant envoi vers l’IA.
+        </p>
+
         <textarea
           rows="6"
           style={{ width: "100%" }}
@@ -187,11 +263,46 @@ export default function App() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
+
+        <br />
+
+        <button style={{ marginTop: 10 }} onClick={handleAnalyzePrompt}>
+          Analyze & Protect Prompt
+        </button>
       </div>
 
-      <button style={{ marginTop: 10 }} onClick={handleAnalyze}>
-        Analyze & Send Prompt
-      </button>
+      <hr style={{ marginTop: 30 }} />
+
+      <div style={{ marginTop: 30 }}>
+        <h2>3. File Protection</h2>
+
+        <p>
+          Upload d’un fichier pour analyse NIS2 / GDPR / ISO27001 avant usage
+          avec une IA. Formats MVP supportés : <strong>.txt, .csv, .json,
+          .docx</strong>.
+        </p>
+
+        <input
+          type="file"
+          accept=".txt,.csv,.json,.docx"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+
+        {file && (
+          <p>
+            <strong>Fichier sélectionné :</strong> {file.name} —{" "}
+            {(file.size / 1024).toFixed(2)} KB
+          </p>
+        )}
+
+        <button style={{ marginTop: 10 }} onClick={handleAnalyzeFile}>
+          Analyze Uploaded File
+        </button>
+      </div>
+
+      <hr style={{ marginTop: 30 }} />
+
+      <h2>Result</h2>
 
       <pre
         style={{
@@ -200,6 +311,8 @@ export default function App() {
           color: "#0f0",
           padding: 20,
           whiteSpace: "pre-wrap",
+          maxHeight: 600,
+          overflow: "auto",
         }}
       >
         {result}
