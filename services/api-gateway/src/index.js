@@ -1,10 +1,18 @@
-import multer from "multer";
-import { protectUploadedFile } from "./fileProtectionEngine.js";
-import cors from "cors"
 import express from "express";
+import cors from "cors";
+import multer from "multer";
+
 import { protectPrompt } from "./dataProtectionEngine.js";
+import { protectUploadedFile } from "./fileProtectionEngine.js";
 
 const app = express();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+  },
+});
 
 app.use(
   cors({
@@ -32,6 +40,17 @@ const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
 const KEYCLOAK_CLIENT_ID =
   process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET || "";
+
+const availableRoutes = [
+  "GET /",
+  "GET /health",
+  "POST /login/keycloak",
+  "POST /generate",
+  "POST /gateway/process",
+  "POST /v1/generate",
+  "POST /v1/gateway/process",
+  "POST /v1/files/analyze",
+];
 
 function readUserFromHeaders(req) {
   return {
@@ -97,15 +116,7 @@ app.get("/", (req, res) => {
     ok: true,
     service: "api-gateway",
     message: "AI Secure Gateway API",
-    availableRoutes: [
-      "GET /",
-      "GET /health",
-      "POST /login/keycloak",
-      "POST /generate",
-      "POST /gateway/process",
-      "POST /v1/generate",
-      "POST /v1/gateway/process",
-    ],
+    availableRoutes,
   });
 });
 
@@ -119,6 +130,7 @@ app.get("/health", (req, res) => {
       realm: KEYCLOAK_REALM,
       clientId: KEYCLOAK_CLIENT_ID,
     },
+    availableRoutes,
   });
 });
 
@@ -186,40 +198,88 @@ app.post("/login/keycloak", async (req, res) => {
 });
 
 app.post("/generate", requireAuth, async (req, res) => {
-  const prompt = req.body.prompt || "";
-  const modelType = req.body.modelType || "public_llm";
+  return processGenerateRequest(req, res, "/generate");
+});
 
-  const protection = protectPrompt(prompt, {
-    modelType,
-    department: "Unknown",
-    roles: "user",
-    country: "BE",
-    mfaVerified: "false",
-  });
-
-  const llmResponse = await callLlmMock(protection.protectedText, modelType);
-
-  return res.json({
-    ok: true,
-    route: "/generate",
-    authenticated: true,
-    modelType,
-    decision: protection.decision,
-    riskScore: protection.score,
-    riskLevel: protection.riskLevel,
-    originalPrompt: protection.originalText,
-    protectedPrompt: protection.protectedText,
-    findings: protection.findings,
-    tokenMap: protection.tokenMap,
-    response: llmResponse,
-  });
+app.post("/v1/generate", requireAuth, async (req, res) => {
+  return processGenerateRequest(req, res, "/v1/generate");
 });
 
 app.post("/gateway/process", requireAuth, async (req, res) => {
   return processGatewayRequest(req, res, "/gateway/process");
 });
 
-app.post("/v1/generate", requireAuth, async (req, res) => {
+app.post("/v1/gateway/process", requireAuth, async (req, res) => {
+  return processGatewayRequest(req, res, "/v1/gateway/process");
+});
+
+app.post(
+  "/v1/files/analyze",
+  requireAuth,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          ok: false,
+          error: "missing_file",
+          message: "No file uploaded. Use form-data field name: file",
+        });
+      }
+
+      const modelType = req.body.modelType || "public_llm";
+      const frameworks = req.body.frameworks
+        ? String(req.body.frameworks).split(",")
+        : ["NIS2", "GDPR", "ISO27001"];
+
+      const user = readUserFromHeaders(req);
+
+      const result = await protectUploadedFile(req.file, {
+        modelType,
+        department: user.department,
+        roles: user.roles,
+        country: user.country,
+        mfaVerified: user.mfaVerified,
+      });
+
+      return res.json({
+        ok: true,
+        route: "/v1/files/analyze",
+        authenticated: true,
+        user,
+        frameworks,
+        file: {
+          name: result.fileName,
+          mimeType: result.mimeType,
+          size: result.size,
+          extractedTextLength: result.extractedTextLength,
+        },
+        decision: result.decision,
+        riskScore: result.riskScore,
+        riskLevel: result.riskLevel,
+        protectedText: result.protectedText,
+        findings: result.findings,
+        businessHits: result.businessHits,
+        tokenMap: result.tokenMap,
+        stats: result.stats,
+        grc: {
+          nis2: true,
+          gdpr: true,
+          iso27001: true,
+          auditEvent: "AI_FILE_SECURITY_CHECK",
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({
+        ok: false,
+        error: "file_analysis_failed",
+        message: error.message,
+      });
+    }
+  }
+);
+
+async function processGenerateRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
   const modelType = req.body.modelType || "public_llm";
 
@@ -235,7 +295,7 @@ app.post("/v1/generate", requireAuth, async (req, res) => {
 
   return res.json({
     ok: true,
-    route: "/v1/generate",
+    route: routeName,
     authenticated: true,
     modelType,
     decision: protection.decision,
@@ -244,14 +304,12 @@ app.post("/v1/generate", requireAuth, async (req, res) => {
     originalPrompt: protection.originalText,
     protectedPrompt: protection.protectedText,
     findings: protection.findings,
+    businessHits: protection.businessHits,
     tokenMap: protection.tokenMap,
+    stats: protection.stats,
     response: llmResponse,
   });
-});
-
-app.post("/v1/gateway/process", requireAuth, async (req, res) => {
-  return processGatewayRequest(req, res, "/v1/gateway/process");
-});
+}
 
 async function processGatewayRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
@@ -328,15 +386,7 @@ app.use((req, res) => {
     error: "not_found",
     method: req.method,
     path: req.originalUrl,
-    availableRoutes: [
-      "GET /",
-      "GET /health",
-      "POST /login/keycloak",
-      "POST /generate",
-      "POST /gateway/process",
-      "POST /v1/generate",
-      "POST /v1/gateway/process",
-    ],
+    availableRoutes,
   });
 });
 
