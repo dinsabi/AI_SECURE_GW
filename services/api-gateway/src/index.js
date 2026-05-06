@@ -326,7 +326,7 @@ async function processGatewayRequest(req, res, routeName) {
     mfaVerified: user.mfaVerified,
   });
 
-  if (protection.decision === "BLOCK_OR_APPROVAL") {
+  if (protection.decision === "BLOCK") {
     return res.status(403).json({
       ok: false,
       route: routeName,

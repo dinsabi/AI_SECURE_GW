@@ -371,7 +371,7 @@ replacePattern(
 
   if (score >= 85) {
     riskLevel = "CRITICAL";
-    decision = "BLOCK_OR_APPROVAL";
+    decision = ""MASK_AND_SEND"";
   }
 
   return {
