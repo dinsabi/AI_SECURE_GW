@@ -35,7 +35,7 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: aigw
       KEYCLOAK_CLIENT_ID: ai-secure-gateway
-      KEYCLOAK_CLIENT_SECRET: CHANGE_ME_AFTER_CREATION
+      KEYCLOAK_CLIENT_SECRET: 53fc89a1-574b-4d54-beb5-abaa94b276a1
 
       # ======================================
       # OPENAI / CHATGPT
