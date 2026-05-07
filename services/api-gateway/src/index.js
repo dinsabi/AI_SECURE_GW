@@ -5,6 +5,7 @@ import multer from "multer";
 
 import { protectPrompt } from "./dataProtectionEngine.js";
 import { protectUploadedFile } from "./fileProtectionEngine.js";
+import { analyzeAIResponse } from "./responseAnalyzer.js";
 
 const app = express();
 
@@ -89,6 +90,47 @@ function requireAuth(req, res, next) {
   next();
 }
 
+async function callOpenAI(prompt) {
+  if (!process.env.OPENAI_API_KEY) {
+    return {
+      provider: "openai",
+      error: true,
+      message: "OPENAI_API_KEY is missing in .env or docker-compose environment.",
+    };
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a secure enterprise AI assistant operating behind an AI Secure Gateway. You are compliant with NIS2, ISO27001 and GDPR. Never reconstruct, infer, or reveal masked sensitive data. Work only with protected/tokenized content.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
+    });
+
+    return {
+      provider: "openai",
+      model: completion.model,
+      answer: completion.choices?.[0]?.message?.content || "",
+      usage: completion.usage,
+    };
+  } catch (error) {
+    return {
+      provider: "openai",
+      error: true,
+      message: error.message,
+    };
+  }
+}
+
 async function callLlmMock(prompt, modelType) {
   const llmUrl = process.env.LLM_URL || "http://llm-mock:3006";
 
@@ -118,53 +160,43 @@ async function callLlmMock(prompt, modelType) {
   }
 }
 
-async function callOpenAI(prompt) {
-  if (!process.env.OPENAI_API_KEY) {
-    return {
-      provider: "openai",
-      error: true,
-      message: "OPENAI_API_KEY is missing in .env or docker-compose environment.",
-    };
-  }
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a secure enterprise AI assistant operating behind an AI Secure Gateway. You are compliant with NIS2, ISO27001 and GDPR. You must never reconstruct, infer, or reveal masked sensitive data. Work only with protected/tokenized content.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.2,
-    });
-
-    return {
-      provider: "openai",
-      model: completion.model,
-      answer: completion.choices?.[0]?.message?.content || "",
-      usage: completion.usage,
-    };
-  } catch (error) {
-    return {
-      provider: "openai",
-      error: true,
-      message: error.message,
-    };
-  }
-}
-
 async function callSelectedLLM(prompt, modelType) {
   if (modelType === "openai" || modelType === "chatgpt") {
     return callOpenAI(prompt);
   }
 
   return callLlmMock(prompt, modelType);
+}
+
+function secureLLMResponse(llmResponse, user, modelType) {
+  const answer = llmResponse?.answer || "";
+
+  const analysis = analyzeAIResponse(answer, {
+    modelType,
+    department: user?.department || "Unknown",
+    roles: user?.roles || "user",
+    country: user?.country || "BE",
+    mfaVerified: user?.mfaVerified || "false",
+  });
+
+  return {
+    ...llmResponse,
+    originalAnswer: analysis.originalResponse,
+    answer:
+      analysis.responseDecision === "BLOCK_RESPONSE_OR_REVIEW"
+        ? "The AI response was blocked by AI Secure Gateway because it may contain sensitive information."
+        : analysis.protectedResponse,
+    responseSecurity: {
+      decision: analysis.responseDecision,
+      riskScore: analysis.responseRiskScore,
+      riskLevel: analysis.responseRiskLevel,
+      findings: analysis.responseFindings,
+      businessHits: analysis.responseBusinessHits,
+      policyHits: analysis.responsePolicyHits,
+      tokenMap: analysis.responseTokenMap,
+      stats: analysis.responseStats,
+    },
+  };
 }
 
 app.get("/", (req, res) => {
@@ -302,7 +334,7 @@ app.post(
         mfaVerified: user.mfaVerified,
       });
 
-      const llmResponse =
+      const rawLlmResponse =
         result.decision === "BLOCK"
           ? {
               provider: "gateway-policy",
@@ -310,6 +342,8 @@ app.post(
                 "File blocked by AI Secure Gateway policy and was not sent to OpenAI.",
             }
           : await callSelectedLLM(result.protectedText, modelType);
+
+      const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
       return res.json({
         ok: true,
@@ -339,6 +373,7 @@ app.post(
           gdpr: true,
           iso27001: true,
           auditEvent: "AI_FILE_SECURITY_CHECK",
+          responseAnalyzed: true,
         },
       });
     } catch (error) {
@@ -355,15 +390,23 @@ async function processGenerateRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
   const modelType = req.body.modelType || "openai";
 
-  const protection = protectPrompt(prompt, {
-    modelType,
+  const user = {
+    email: "unknown",
     department: "Unknown",
     roles: "user",
     country: "BE",
     mfaVerified: "false",
+  };
+
+  const protection = protectPrompt(prompt, {
+    modelType,
+    department: user.department,
+    roles: user.roles,
+    country: user.country,
+    mfaVerified: user.mfaVerified,
   });
 
-  const llmResponse =
+  const rawLlmResponse =
     protection.decision === "BLOCK"
       ? {
           provider: "gateway-policy",
@@ -371,6 +414,8 @@ async function processGenerateRequest(req, res, routeName) {
             "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
         }
       : await callSelectedLLM(protection.protectedText, modelType);
+
+  const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
   return res.json({
     ok: true,
@@ -387,6 +432,9 @@ async function processGenerateRequest(req, res, routeName) {
     tokenMap: protection.tokenMap,
     stats: protection.stats,
     response: llmResponse,
+    grc: {
+      responseAnalyzed: true,
+    },
   });
 }
 
@@ -427,11 +475,13 @@ async function processGatewayRequest(req, res, routeName) {
         gdpr: true,
         iso27001: true,
         auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
+        responseAnalyzed: false,
       },
     });
   }
 
-  const llmResponse = await callSelectedLLM(protection.protectedText, modelType);
+  const rawLlmResponse = await callSelectedLLM(protection.protectedText, modelType);
+  const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
   return res.json({
     ok: true,
@@ -455,6 +505,7 @@ async function processGatewayRequest(req, res, routeName) {
       gdpr: true,
       iso27001: true,
       auditEvent: "AI_PROMPT_SECURITY_CHECK",
+      responseAnalyzed: true,
     },
   });
 }
