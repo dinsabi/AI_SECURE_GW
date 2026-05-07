@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SocDashboard from "./components/SocDashboard.jsx";
 
 function getApiBase() {
   const origin = window.location.origin;
@@ -29,6 +30,7 @@ export default function App() {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState("");
   const [status, setStatus] = useState("");
+  const [dashboard, setDashboard] = useState(null);
 
   const parseResponse = async (res) => {
     const text = await res.text();
@@ -40,9 +42,19 @@ export default function App() {
     }
   };
 
+  const getAuthHeaders = () => ({
+    Authorization: `Bearer ${token}`,
+    "X-User-Email": username,
+    "X-User-Department": "Finance",
+    "X-User-Roles": "admin,finance_manager",
+    "X-User-Country": "BE",
+    "X-MFA-Verified": "true",
+  });
+
   const handleLogin = async () => {
     setStatus("Connexion à Keycloak...");
     setResult("");
+    setDashboard(null);
 
     try {
       const res = await fetch(`${API_BASE}/login/keycloak`, {
@@ -106,23 +118,19 @@ export default function App() {
 
     setStatus("Analyse du prompt en cours...");
     setResult("");
+    setDashboard(null);
 
     try {
       const res = await fetch(`${API_BASE}/v1/gateway/process`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-User-Email": username,
-          "X-User-Department": "Finance",
-          "X-User-Roles": "admin,finance_manager",
-          "X-User-Country": "BE",
-          "X-MFA-Verified": "true",
+          ...getAuthHeaders(),
         },
         mode: "cors",
         body: JSON.stringify({
           prompt,
-          modelType: "public_llm",
+          modelType: "openai",
           frameworks: ["NIS2", "GDPR", "ISO27001"],
         }),
       });
@@ -162,22 +170,18 @@ export default function App() {
 
     setStatus("Analyse du fichier uploadé en cours...");
     setResult("");
+    setDashboard(null);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("modelType", "public_llm");
+      formData.append("modelType", "openai");
       formData.append("frameworks", "NIS2,GDPR,ISO27001");
 
       const res = await fetch(`${API_BASE}/v1/files/analyze`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
-          "X-User-Email": username,
-          "X-User-Department": "Finance",
-          "X-User-Roles": "admin,finance_manager",
-          "X-User-Country": "BE",
-          "X-MFA-Verified": "true",
+          ...getAuthHeaders(),
         },
         mode: "cors",
         body: formData,
@@ -205,14 +209,63 @@ export default function App() {
     }
   };
 
+  const handleLoadDashboard = async () => {
+    if (!token) {
+      alert("Login first !");
+      return;
+    }
+
+    setStatus("Chargement du dashboard SOC / GRC...");
+    setResult("");
+
+    try {
+      const res = await fetch(`${API_BASE}/v1/dashboard/risk-summary`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        mode: "cors",
+      });
+
+      const data = await parseResponse(res);
+
+      if (!res.ok) {
+        setStatus("Erreur dashboard SOC");
+        setDashboard(null);
+        setResult(JSON.stringify(data, null, 2));
+        return;
+      }
+
+      setDashboard(data);
+      setStatus("Dashboard SOC / GRC chargé ✅");
+      setResult(JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error("DASHBOARD ERROR:", err);
+      setStatus("Erreur dashboard SOC");
+      setDashboard(null);
+      setResult(
+        JSON.stringify(
+          {
+            ok: false,
+            error: "Erreur dashboard SOC",
+            message: err.message,
+            api: API_BASE,
+          },
+          null,
+          2
+        )
+      );
+    }
+  };
+
   return (
     <div style={{ padding: 40, fontFamily: "Arial" }}>
       <h1>AI Secure Gateway</h1>
 
       <p>
         Secure AI access with Keycloak IAM, RBAC, MFA header, risk scoring,
-        policy enforcement, file protection and audit trail for NIS2 / GDPR /
-        ISO27001.
+        policy enforcement, response analysis, file protection and audit trail
+        for NIS2 / GDPR / ISO27001.
       </p>
 
       <p>
@@ -253,7 +306,7 @@ export default function App() {
 
         <p>
           Détection et tokenisation des emails, IBAN, mots de passe, clés API,
-          IP internes, secrets et données sensibles avant envoi vers l’IA.
+          IP internes, secrets et données sensibles avant envoi vers OpenAI.
         </p>
 
         <textarea
@@ -278,8 +331,8 @@ export default function App() {
 
         <p>
           Upload d’un fichier pour analyse NIS2 / GDPR / ISO27001 avant usage
-          avec une IA. Formats MVP supportés : <strong>.txt, .csv, .json,
-          .docx</strong>.
+          avec une IA. Formats MVP supportés :{" "}
+          <strong>.txt, .csv, .json, .docx</strong>.
         </p>
 
         <input
@@ -302,7 +355,22 @@ export default function App() {
 
       <hr style={{ marginTop: 30 }} />
 
-      <h2>Result</h2>
+      <div style={{ marginTop: 30 }}>
+        <h2>4. SOC / GRC Dashboard</h2>
+
+        <p>
+          Charge les événements PostgreSQL : prompts analysés, fichiers analysés,
+          risques critiques, décisions et types de données détectées.
+        </p>
+
+        <button onClick={handleLoadDashboard}>Load SOC Dashboard</button>
+      </div>
+
+      <SocDashboard dashboard={dashboard} />
+
+      <hr style={{ marginTop: 30 }} />
+
+      <h2>Raw JSON Result</h2>
 
       <pre
         style={{
