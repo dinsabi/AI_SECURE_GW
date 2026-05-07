@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -6,6 +7,10 @@ import { protectPrompt } from "./dataProtectionEngine.js";
 import { protectUploadedFile } from "./fileProtectionEngine.js";
 
 const app = express();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -40,6 +45,8 @@ const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
 const KEYCLOAK_CLIENT_ID =
   process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET || "";
+
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const availableRoutes = [
   "GET /",
@@ -111,6 +118,55 @@ async function callLlmMock(prompt, modelType) {
   }
 }
 
+async function callOpenAI(prompt) {
+  if (!process.env.OPENAI_API_KEY) {
+    return {
+      provider: "openai",
+      error: true,
+      message: "OPENAI_API_KEY is missing in .env or docker-compose environment.",
+    };
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a secure enterprise AI assistant operating behind an AI Secure Gateway. You are compliant with NIS2, ISO27001 and GDPR. You must never reconstruct, infer, or reveal masked sensitive data. Work only with protected/tokenized content.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
+    });
+
+    return {
+      provider: "openai",
+      model: completion.model,
+      answer: completion.choices?.[0]?.message?.content || "",
+      usage: completion.usage,
+    };
+  } catch (error) {
+    return {
+      provider: "openai",
+      error: true,
+      message: error.message,
+    };
+  }
+}
+
+async function callSelectedLLM(prompt, modelType) {
+  if (modelType === "openai" || modelType === "chatgpt") {
+    return callOpenAI(prompt);
+  }
+
+  return callLlmMock(prompt, modelType);
+}
+
 app.get("/", (req, res) => {
   res.json({
     ok: true,
@@ -129,6 +185,10 @@ app.get("/health", (req, res) => {
       url: KEYCLOAK_URL,
       realm: KEYCLOAK_REALM,
       clientId: KEYCLOAK_CLIENT_ID,
+    },
+    openai: {
+      configured: Boolean(process.env.OPENAI_API_KEY),
+      model: OPENAI_MODEL,
     },
     availableRoutes,
   });
@@ -227,7 +287,7 @@ app.post(
         });
       }
 
-      const modelType = req.body.modelType || "public_llm";
+      const modelType = req.body.modelType || "openai";
       const frameworks = req.body.frameworks
         ? String(req.body.frameworks).split(",").map((x) => x.trim())
         : ["NIS2", "GDPR", "ISO27001"];
@@ -242,6 +302,15 @@ app.post(
         mfaVerified: user.mfaVerified,
       });
 
+      const llmResponse =
+        result.decision === "BLOCK"
+          ? {
+              provider: "gateway-policy",
+              answer:
+                "File blocked by AI Secure Gateway policy and was not sent to OpenAI.",
+            }
+          : await callSelectedLLM(result.protectedText, modelType);
+
       return res.json({
         ok: true,
         route: "/v1/files/analyze",
@@ -254,6 +323,7 @@ app.post(
           size: result.size,
           extractedTextLength: result.extractedTextLength,
         },
+        modelType,
         decision: result.decision,
         riskScore: result.riskScore,
         riskLevel: result.riskLevel,
@@ -263,6 +333,7 @@ app.post(
         businessHits: result.businessHits,
         tokenMap: result.tokenMap,
         stats: result.stats,
+        response: llmResponse,
         grc: {
           nis2: true,
           gdpr: true,
@@ -282,7 +353,7 @@ app.post(
 
 async function processGenerateRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
-  const modelType = req.body.modelType || "public_llm";
+  const modelType = req.body.modelType || "openai";
 
   const protection = protectPrompt(prompt, {
     modelType,
@@ -292,7 +363,14 @@ async function processGenerateRequest(req, res, routeName) {
     mfaVerified: "false",
   });
 
-  const llmResponse = await callLlmMock(protection.protectedText, modelType);
+  const llmResponse =
+    protection.decision === "BLOCK"
+      ? {
+          provider: "gateway-policy",
+          answer:
+            "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
+        }
+      : await callSelectedLLM(protection.protectedText, modelType);
 
   return res.json({
     ok: true,
@@ -314,7 +392,7 @@ async function processGenerateRequest(req, res, routeName) {
 
 async function processGatewayRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
-  const modelType = req.body.modelType || "public_llm";
+  const modelType = req.body.modelType || "openai";
   const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
   const user = readUserFromHeaders(req);
 
@@ -343,7 +421,7 @@ async function processGatewayRequest(req, res, routeName) {
       businessHits: protection.businessHits,
       tokenMap: protection.tokenMap,
       message:
-        "Prompt blocked or requires approval before being sent to a public LLM.",
+        "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
       grc: {
         nis2: true,
         gdpr: true,
@@ -353,7 +431,7 @@ async function processGatewayRequest(req, res, routeName) {
     });
   }
 
-  const llmResponse = await callLlmMock(protection.protectedText, modelType);
+  const llmResponse = await callSelectedLLM(protection.protectedText, modelType);
 
   return res.json({
     ok: true,
@@ -396,4 +474,6 @@ app.listen(PORT, () => {
   console.log(`Keycloak URL: ${KEYCLOAK_URL}`);
   console.log(`Keycloak realm: ${KEYCLOAK_REALM}`);
   console.log(`Keycloak client: ${KEYCLOAK_CLIENT_ID}`);
+  console.log(`OpenAI configured: ${Boolean(process.env.OPENAI_API_KEY)}`);
+  console.log(`OpenAI model: ${OPENAI_MODEL}`);
 });
