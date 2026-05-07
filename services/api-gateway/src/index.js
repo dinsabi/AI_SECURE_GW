@@ -6,6 +6,8 @@ import multer from "multer";
 import { protectPrompt } from "./dataProtectionEngine.js";
 import { protectUploadedFile } from "./fileProtectionEngine.js";
 import { analyzeAIResponse } from "./responseAnalyzer.js";
+import { initDatabase } from "./db.js";
+import { writeAuditEvent, getRiskSummary } from "./auditLogger.js";
 
 const app = express();
 
@@ -58,6 +60,7 @@ const availableRoutes = [
   "POST /v1/generate",
   "POST /v1/gateway/process",
   "POST /v1/files/analyze",
+  "GET /v1/dashboard/risk-summary",
 ];
 
 function readUserFromHeaders(req) {
@@ -222,8 +225,29 @@ app.get("/health", (req, res) => {
       configured: Boolean(process.env.OPENAI_API_KEY),
       model: OPENAI_MODEL,
     },
+    audit: {
+      postgres: true,
+    },
     availableRoutes,
   });
+});
+
+app.get("/v1/dashboard/risk-summary", requireAuth, async (req, res) => {
+  try {
+    const data = await getRiskSummary();
+
+    return res.json({
+      ok: true,
+      route: "/v1/dashboard/risk-summary",
+      ...data,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: "risk_summary_failed",
+      message: error.message,
+    });
+  }
 });
 
 app.post("/login/keycloak", async (req, res) => {
@@ -345,6 +369,42 @@ app.post(
 
       const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
+      const grc = {
+        nis2: true,
+        gdpr: true,
+        iso27001: true,
+        auditEvent: "AI_FILE_SECURITY_CHECK",
+        responseAnalyzed: true,
+      };
+
+      await writeAuditEvent({
+        eventType: "AI_FILE_SECURITY_CHECK",
+        route: "/v1/files/analyze",
+        user,
+        modelType,
+        provider: llmResponse.provider,
+        frameworks,
+        decision: result.decision,
+        riskScore: result.riskScore,
+        riskLevel: result.riskLevel,
+        findings: result.findings,
+        businessHits: result.businessHits,
+        originalText: result.originalText,
+        protectedText: result.protectedText,
+        originalResponse: llmResponse.originalAnswer,
+        protectedResponse: llmResponse.answer,
+        responseDecision: llmResponse.responseSecurity?.decision,
+        responseRiskScore: llmResponse.responseSecurity?.riskScore,
+        responseRiskLevel: llmResponse.responseSecurity?.riskLevel,
+        file: {
+          name: result.fileName,
+          mimeType: result.mimeType,
+          size: result.size,
+          extractedTextLength: result.extractedTextLength,
+        },
+        grc,
+      });
+
       return res.json({
         ok: true,
         route: "/v1/files/analyze",
@@ -368,13 +428,7 @@ app.post(
         tokenMap: result.tokenMap,
         stats: result.stats,
         response: llmResponse,
-        grc: {
-          nis2: true,
-          gdpr: true,
-          iso27001: true,
-          auditEvent: "AI_FILE_SECURITY_CHECK",
-          responseAnalyzed: true,
-        },
+        grc,
       });
     } catch (error) {
       return res.status(500).json({
@@ -417,6 +471,36 @@ async function processGenerateRequest(req, res, routeName) {
 
   const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
+  const grc = {
+    nis2: true,
+    gdpr: true,
+    iso27001: true,
+    auditEvent: "AI_PROMPT_SECURITY_CHECK",
+    responseAnalyzed: true,
+  };
+
+  await writeAuditEvent({
+    eventType: "AI_PROMPT_SECURITY_CHECK",
+    route: routeName,
+    user,
+    modelType,
+    provider: llmResponse.provider,
+    frameworks: ["NIS2", "GDPR", "ISO27001"],
+    decision: protection.decision,
+    riskScore: protection.score,
+    riskLevel: protection.riskLevel,
+    findings: protection.findings,
+    businessHits: protection.businessHits,
+    originalPrompt: protection.originalText,
+    protectedPrompt: protection.protectedText,
+    originalResponse: llmResponse.originalAnswer,
+    protectedResponse: llmResponse.answer,
+    responseDecision: llmResponse.responseSecurity?.decision,
+    responseRiskScore: llmResponse.responseSecurity?.riskScore,
+    responseRiskLevel: llmResponse.responseSecurity?.riskLevel,
+    grc,
+  });
+
   return res.json({
     ok: true,
     route: routeName,
@@ -432,9 +516,7 @@ async function processGenerateRequest(req, res, routeName) {
     tokenMap: protection.tokenMap,
     stats: protection.stats,
     response: llmResponse,
-    grc: {
-      responseAnalyzed: true,
-    },
+    grc,
   });
 }
 
@@ -453,6 +535,31 @@ async function processGatewayRequest(req, res, routeName) {
   });
 
   if (protection.decision === "BLOCK") {
+    const grc = {
+      nis2: true,
+      gdpr: true,
+      iso27001: true,
+      auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
+      responseAnalyzed: false,
+    };
+
+    await writeAuditEvent({
+      eventType: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
+      route: routeName,
+      user,
+      modelType,
+      provider: "gateway-policy",
+      frameworks,
+      decision: protection.decision,
+      riskScore: protection.score,
+      riskLevel: protection.riskLevel,
+      findings: protection.findings,
+      businessHits: protection.businessHits,
+      originalPrompt: protection.originalText,
+      protectedPrompt: protection.protectedText,
+      grc,
+    });
+
     return res.status(403).json({
       ok: false,
       route: routeName,
@@ -470,18 +577,42 @@ async function processGatewayRequest(req, res, routeName) {
       tokenMap: protection.tokenMap,
       message:
         "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
-      grc: {
-        nis2: true,
-        gdpr: true,
-        iso27001: true,
-        auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
-        responseAnalyzed: false,
-      },
+      grc,
     });
   }
 
   const rawLlmResponse = await callSelectedLLM(protection.protectedText, modelType);
   const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
+
+  const grc = {
+    nis2: true,
+    gdpr: true,
+    iso27001: true,
+    auditEvent: "AI_PROMPT_SECURITY_CHECK",
+    responseAnalyzed: true,
+  };
+
+  await writeAuditEvent({
+    eventType: "AI_PROMPT_SECURITY_CHECK",
+    route: routeName,
+    user,
+    modelType,
+    provider: llmResponse.provider,
+    frameworks,
+    decision: protection.decision,
+    riskScore: protection.score,
+    riskLevel: protection.riskLevel,
+    findings: protection.findings,
+    businessHits: protection.businessHits,
+    originalPrompt: protection.originalText,
+    protectedPrompt: protection.protectedText,
+    originalResponse: llmResponse.originalAnswer,
+    protectedResponse: llmResponse.answer,
+    responseDecision: llmResponse.responseSecurity?.decision,
+    responseRiskScore: llmResponse.responseSecurity?.riskScore,
+    responseRiskLevel: llmResponse.responseSecurity?.riskLevel,
+    grc,
+  });
 
   return res.json({
     ok: true,
@@ -500,13 +631,7 @@ async function processGatewayRequest(req, res, routeName) {
     tokenMap: protection.tokenMap,
     stats: protection.stats,
     response: llmResponse,
-    grc: {
-      nis2: true,
-      gdpr: true,
-      iso27001: true,
-      auditEvent: "AI_PROMPT_SECURITY_CHECK",
-      responseAnalyzed: true,
-    },
+    grc,
   });
 }
 
@@ -520,11 +645,19 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`api-gateway ready on port ${PORT}`);
-  console.log(`Keycloak URL: ${KEYCLOAK_URL}`);
-  console.log(`Keycloak realm: ${KEYCLOAK_REALM}`);
-  console.log(`Keycloak client: ${KEYCLOAK_CLIENT_ID}`);
-  console.log(`OpenAI configured: ${Boolean(process.env.OPENAI_API_KEY)}`);
-  console.log(`OpenAI model: ${OPENAI_MODEL}`);
-});
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`api-gateway ready on port ${PORT}`);
+      console.log(`Keycloak URL: ${KEYCLOAK_URL}`);
+      console.log(`Keycloak realm: ${KEYCLOAK_REALM}`);
+      console.log(`Keycloak client: ${KEYCLOAK_CLIENT_ID}`);
+      console.log(`OpenAI configured: ${Boolean(process.env.OPENAI_API_KEY)}`);
+      console.log(`OpenAI model: ${OPENAI_MODEL}`);
+      console.log("PostgreSQL audit database initialized");
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to initialize PostgreSQL audit database", error);
+    process.exit(1);
+  });
