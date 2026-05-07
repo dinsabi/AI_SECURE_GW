@@ -8,6 +8,7 @@ import { protectUploadedFile } from "./fileProtectionEngine.js";
 import { analyzeAIResponse } from "./responseAnalyzer.js";
 import { initDatabase } from "./db.js";
 import { writeAuditEvent, getRiskSummary } from "./auditLogger.js";
+import { routeLLM } from "./llmRouter.js";
 
 const app = express();
 
@@ -93,84 +94,6 @@ function requireAuth(req, res, next) {
   next();
 }
 
-async function callOpenAI(prompt) {
-  if (!process.env.OPENAI_API_KEY) {
-    return {
-      provider: "openai",
-      error: true,
-      message: "OPENAI_API_KEY is missing in .env or docker-compose environment.",
-    };
-  }
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a secure enterprise AI assistant operating behind an AI Secure Gateway. You are compliant with NIS2, ISO27001 and GDPR. Never reconstruct, infer, or reveal masked sensitive data. Work only with protected/tokenized content.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.2,
-    });
-
-    return {
-      provider: "openai",
-      model: completion.model,
-      answer: completion.choices?.[0]?.message?.content || "",
-      usage: completion.usage,
-    };
-  } catch (error) {
-    return {
-      provider: "openai",
-      error: true,
-      message: error.message,
-    };
-  }
-}
-
-async function callLlmMock(prompt, modelType) {
-  const llmUrl = process.env.LLM_URL || "http://llm-mock:3006";
-
-  try {
-    const response = await fetch(`${llmUrl}/generate`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt, modelType }),
-    });
-
-    if (!response.ok) {
-      return {
-        provider: "gateway-fallback",
-        answer: `LLM mock returned HTTP ${response.status}`,
-      };
-    }
-
-    return await response.json();
-  } catch (error) {
-    return {
-      provider: "gateway-fallback",
-      answer: "LLM indisponible",
-      warning: error.message,
-    };
-  }
-}
-
-async function callSelectedLLM(prompt, modelType) {
-  if (modelType === "openai" || modelType === "chatgpt") {
-    return callOpenAI(prompt);
-  }
-
-  return callLlmMock(prompt, modelType);
-}
-
 function secureLLMResponse(llmResponse, user, modelType) {
   const answer = llmResponse?.answer || "";
 
@@ -227,6 +150,10 @@ app.get("/health", (req, res) => {
     },
     audit: {
       postgres: true,
+    },
+    llmRouter: {
+      enabled: true,
+      supportedProviders: ["openai", "chatgpt", "mock", "public_llm"],
     },
     availableRoutes,
   });
@@ -362,10 +289,22 @@ app.post(
         result.decision === "BLOCK"
           ? {
               provider: "gateway-policy",
+              routedTo: "none",
+              routingDecision: "BLOCKED_BY_POLICY",
               answer:
-                "File blocked by AI Secure Gateway policy and was not sent to OpenAI.",
+                "File blocked by AI Secure Gateway policy and was not sent to any LLM.",
             }
-          : await callSelectedLLM(result.protectedText, modelType);
+          : await routeLLM({
+              openai,
+              prompt: result.protectedText,
+              modelType,
+              user,
+              protection: {
+                riskLevel: result.riskLevel,
+                score: result.riskScore,
+                decision: result.decision,
+              },
+            });
 
       const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
@@ -464,10 +403,18 @@ async function processGenerateRequest(req, res, routeName) {
     protection.decision === "BLOCK"
       ? {
           provider: "gateway-policy",
+          routedTo: "none",
+          routingDecision: "BLOCKED_BY_POLICY",
           answer:
-            "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
+            "Prompt blocked by AI Secure Gateway policy and was not sent to any LLM.",
         }
-      : await callSelectedLLM(protection.protectedText, modelType);
+      : await routeLLM({
+          openai,
+          prompt: protection.protectedText,
+          modelType,
+          user,
+          protection,
+        });
 
   const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
@@ -576,12 +523,19 @@ async function processGatewayRequest(req, res, routeName) {
       businessHits: protection.businessHits,
       tokenMap: protection.tokenMap,
       message:
-        "Prompt blocked by AI Secure Gateway policy and was not sent to OpenAI.",
+        "Prompt blocked by AI Secure Gateway policy and was not sent to any LLM.",
       grc,
     });
   }
 
-  const rawLlmResponse = await callSelectedLLM(protection.protectedText, modelType);
+  const rawLlmResponse = await routeLLM({
+    openai,
+    prompt: protection.protectedText,
+    modelType,
+    user,
+    protection,
+  });
+
   const llmResponse = secureLLMResponse(rawLlmResponse, user, modelType);
 
   const grc = {
@@ -655,6 +609,7 @@ initDatabase()
       console.log(`OpenAI configured: ${Boolean(process.env.OPENAI_API_KEY)}`);
       console.log(`OpenAI model: ${OPENAI_MODEL}`);
       console.log("PostgreSQL audit database initialized");
+      console.log("Multi-LLM Router enabled");
     });
   })
   .catch((error) => {
