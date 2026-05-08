@@ -29,7 +29,7 @@ export default function App() {
 
   const [file, setFile] = useState(null);
   const [result, setResult] = useState("");
-  const [status, setStatus] = useState(""): "";"modelType": ""
+  const [status, setStatus] = useState("")
   const [dashboard, setDashboard] = useState(null);
 
   const parseResponse = async (res) => {
