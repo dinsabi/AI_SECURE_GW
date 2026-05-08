@@ -6,6 +6,7 @@ import multer from "multer";
 import { protectPrompt } from "./dataProtectionEngine.js";
 import { protectUploadedFile } from "./fileProtectionEngine.js";
 import { analyzeAIResponse } from "./responseAnalyzer.js";
+import { analyzePromptInjection } from "./promptInjectionGuard.js";
 import { initDatabase } from "./db.js";
 import { writeAuditEvent, getRiskSummary } from "./auditLogger.js";
 import { routeLLM } from "./llmRouter.js";
@@ -49,7 +50,6 @@ const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || "aigw";
 const KEYCLOAK_CLIENT_ID =
   process.env.KEYCLOAK_CLIENT_ID || "ai-secure-gateway";
 const KEYCLOAK_CLIENT_SECRET = process.env.KEYCLOAK_CLIENT_SECRET || "";
-
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 const availableRoutes = [
@@ -125,6 +125,75 @@ function secureLLMResponse(llmResponse, user, modelType) {
   };
 }
 
+function injectionFindings(injection) {
+  return injection.hits.map((h) => ({
+    type: h.type,
+    severity: h.severity,
+    token: "[PROMPT_INJECTION]",
+    originalLength: h.matched?.length || 0,
+  }));
+}
+
+async function blockPromptInjection({
+  res,
+  route,
+  user,
+  frameworks,
+  modelType,
+  injection,
+  originalPrompt,
+  isFile = false,
+  file = null,
+}) {
+  const grc = {
+    nis2: true,
+    gdpr: true,
+    iso27001: true,
+    auditEvent: isFile
+      ? "AI_FILE_PROMPT_INJECTION_BLOCKED"
+      : "AI_PROMPT_INJECTION_BLOCKED",
+    responseAnalyzed: false,
+  };
+
+  await writeAuditEvent({
+    eventType: grc.auditEvent,
+    route,
+    user,
+    modelType,
+    provider: "gateway-policy",
+    frameworks,
+    decision: "BLOCK",
+    riskScore: injection.score,
+    riskLevel: injection.riskLevel,
+    findings: injectionFindings(injection),
+    businessHits: [],
+    originalPrompt,
+    protectedPrompt: isFile
+      ? "[BLOCKED_FILE_PROMPT_INJECTION]"
+      : "[BLOCKED_PROMPT_INJECTION]",
+    file,
+    grc,
+  });
+
+  return res.status(403).json({
+    ok: false,
+    route,
+    authenticated: true,
+    user,
+    frameworks,
+    file,
+    modelType,
+    decision: "BLOCK",
+    riskScore: injection.score,
+    riskLevel: injection.riskLevel,
+    injection,
+    message: isFile
+      ? "Uploaded file blocked by AI Secure Gateway because a prompt injection attempt was detected."
+      : "Prompt blocked by AI Secure Gateway because a prompt injection attempt was detected.",
+    grc,
+  });
+}
+
 app.get("/", (req, res) => {
   res.json({
     ok: true,
@@ -154,6 +223,9 @@ app.get("/health", (req, res) => {
     llmRouter: {
       enabled: true,
       supportedProviders: ["openai", "chatgpt", "mock", "public_llm"],
+    },
+    promptInjectionProtection: {
+      enabled: true,
     },
     availableRoutes,
   });
@@ -285,6 +357,29 @@ app.post(
         mfaVerified: user.mfaVerified,
       });
 
+      const fileInfo = {
+        name: result.fileName,
+        mimeType: result.mimeType,
+        size: result.size,
+        extractedTextLength: result.extractedTextLength,
+      };
+
+      const injection = analyzePromptInjection(result.originalText || "");
+
+      if (injection.decision === "BLOCK") {
+        return blockPromptInjection({
+          res,
+          route: "/v1/files/analyze",
+          user,
+          frameworks,
+          modelType,
+          injection,
+          originalPrompt: result.originalText,
+          isFile: true,
+          file: fileInfo,
+        });
+      }
+
       const rawLlmResponse =
         result.decision === "BLOCK"
           ? {
@@ -314,6 +409,7 @@ app.post(
         iso27001: true,
         auditEvent: "AI_FILE_SECURITY_CHECK",
         responseAnalyzed: true,
+        promptInjectionChecked: true,
       };
 
       await writeAuditEvent({
@@ -335,12 +431,7 @@ app.post(
         responseDecision: llmResponse.responseSecurity?.decision,
         responseRiskScore: llmResponse.responseSecurity?.riskScore,
         responseRiskLevel: llmResponse.responseSecurity?.riskLevel,
-        file: {
-          name: result.fileName,
-          mimeType: result.mimeType,
-          size: result.size,
-          extractedTextLength: result.extractedTextLength,
-        },
+        file: fileInfo,
         grc,
       });
 
@@ -350,12 +441,7 @@ app.post(
         authenticated: true,
         user,
         frameworks,
-        file: {
-          name: result.fileName,
-          mimeType: result.mimeType,
-          size: result.size,
-          extractedTextLength: result.extractedTextLength,
-        },
+        file: fileInfo,
         modelType,
         decision: result.decision,
         riskScore: result.riskScore,
@@ -366,6 +452,7 @@ app.post(
         businessHits: result.businessHits,
         tokenMap: result.tokenMap,
         stats: result.stats,
+        injection,
         response: llmResponse,
         grc,
       });
@@ -382,6 +469,7 @@ app.post(
 async function processGenerateRequest(req, res, routeName) {
   const prompt = req.body.prompt || "";
   const modelType = req.body.modelType || "openai";
+  const frameworks = ["NIS2", "GDPR", "ISO27001"];
 
   const user = {
     email: "unknown",
@@ -390,6 +478,20 @@ async function processGenerateRequest(req, res, routeName) {
     country: "BE",
     mfaVerified: "false",
   };
+
+  const injection = analyzePromptInjection(prompt);
+
+  if (injection.decision === "BLOCK") {
+    return blockPromptInjection({
+      res,
+      route: routeName,
+      user,
+      frameworks,
+      modelType,
+      injection,
+      originalPrompt: prompt,
+    });
+  }
 
   const protection = protectPrompt(prompt, {
     modelType,
@@ -424,6 +526,7 @@ async function processGenerateRequest(req, res, routeName) {
     iso27001: true,
     auditEvent: "AI_PROMPT_SECURITY_CHECK",
     responseAnalyzed: true,
+    promptInjectionChecked: true,
   };
 
   await writeAuditEvent({
@@ -432,7 +535,7 @@ async function processGenerateRequest(req, res, routeName) {
     user,
     modelType,
     provider: llmResponse.provider,
-    frameworks: ["NIS2", "GDPR", "ISO27001"],
+    frameworks,
     decision: protection.decision,
     riskScore: protection.score,
     riskLevel: protection.riskLevel,
@@ -462,6 +565,7 @@ async function processGenerateRequest(req, res, routeName) {
     businessHits: protection.businessHits,
     tokenMap: protection.tokenMap,
     stats: protection.stats,
+    injection,
     response: llmResponse,
     grc,
   });
@@ -472,6 +576,20 @@ async function processGatewayRequest(req, res, routeName) {
   const modelType = req.body.modelType || "openai";
   const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
   const user = readUserFromHeaders(req);
+
+  const injection = analyzePromptInjection(prompt);
+
+  if (injection.decision === "BLOCK") {
+    return blockPromptInjection({
+      res,
+      route: routeName,
+      user,
+      frameworks,
+      modelType,
+      injection,
+      originalPrompt: prompt,
+    });
+  }
 
   const protection = protectPrompt(prompt, {
     modelType,
@@ -488,6 +606,7 @@ async function processGatewayRequest(req, res, routeName) {
       iso27001: true,
       auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
       responseAnalyzed: false,
+      promptInjectionChecked: true,
     };
 
     await writeAuditEvent({
@@ -522,6 +641,7 @@ async function processGatewayRequest(req, res, routeName) {
       findings: protection.findings,
       businessHits: protection.businessHits,
       tokenMap: protection.tokenMap,
+      injection,
       message:
         "Prompt blocked by AI Secure Gateway policy and was not sent to any LLM.",
       grc,
@@ -544,6 +664,7 @@ async function processGatewayRequest(req, res, routeName) {
     iso27001: true,
     auditEvent: "AI_PROMPT_SECURITY_CHECK",
     responseAnalyzed: true,
+    promptInjectionChecked: true,
   };
 
   await writeAuditEvent({
@@ -584,6 +705,7 @@ async function processGatewayRequest(req, res, routeName) {
     businessHits: protection.businessHits,
     tokenMap: protection.tokenMap,
     stats: protection.stats,
+    injection,
     response: llmResponse,
     grc,
   });
@@ -610,6 +732,7 @@ initDatabase()
       console.log(`OpenAI model: ${OPENAI_MODEL}`);
       console.log("PostgreSQL audit database initialized");
       console.log("Multi-LLM Router enabled");
+      console.log("Prompt Injection Protection enabled");
     });
   })
   .catch((error) => {
