@@ -1,3 +1,5 @@
+import { encryptValue } from "./cryptoService.js";
+
 export function protectPrompt(input, context = {}) {
   const originalText = String(input || "");
   let protectedText = originalText;
@@ -13,13 +15,15 @@ export function protectPrompt(input, context = {}) {
 
   function register(type, value, severity = "MEDIUM") {
     const token = nextToken(type);
-    tokenMap[token] = value;
+
+    tokenMap[token] = encryptValue(value);
 
     findings.push({
       type,
       token,
       severity,
       originalLength: value.length,
+      encrypted: true,
     });
 
     return token;
@@ -32,12 +36,12 @@ export function protectPrompt(input, context = {}) {
   }
 
   // =========================
-  // PII / GDPR / NIS2
+  // PII / GDPR
   // =========================
 
   replacePattern(
     "EMAIL",
-    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
     "HIGH"
   );
 
@@ -48,14 +52,14 @@ export function protectPrompt(input, context = {}) {
   );
 
   replacePattern(
-    "NISS_BE",
+    "NATIONAL_ID_BE",
     /\b\d{2}[.\s-]?\d{2}[.\s-]?\d{2}[.\s-]?\d{3}[.\s-]?\d{2}\b/g,
     "HIGH"
   );
 
   replacePattern(
     "DATE_OF_BIRTH",
-    /\b(?:né le|née le|date de naissance|birth date|dob)\s*[:\-]?\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi,
+    /\b(?:né le|née le|date de naissance|dob)\s*[:\-]?\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi,
     "HIGH"
   );
 
@@ -66,33 +70,33 @@ export function protectPrompt(input, context = {}) {
   );
 
   replacePattern(
-    "PERSON",
-    /\b(?:Monsieur|Madame|Mr|Mrs|Mme|M\.|Client|Utilisateur|Employé|Employee)\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+)?\b/g,
-    "MEDIUM"
-  );
-
-  replacePattern(
-    "PASSPORT",
-    /\b(?:passport|passeport)\s*[:#-]?\s*[A-Z0-9]{6,12}\b/gi,
+    "PASSPORT_NUMBER",
+    /\b(?:passport|passeport)\s*[:\-]?\s*[A-Z0-9]{6,12}\b/gi,
     "HIGH"
   );
 
   replacePattern(
     "DRIVING_LICENSE",
-    /\b(?:permis|driving licence|driver license)\s*[:#-]?\s*[A-Z0-9-]{6,15}\b/gi,
+    /\b(?:permis|driving licence|driver license)\s*[:\-]?\s*[A-Z0-9\-]{6,15}\b/gi,
     "HIGH"
   );
 
   replacePattern(
     "LICENSE_PLATE",
-    /\b[1-9]-[A-Z]{3}-\d{3}\b/g,
+    /\b(?:[A-Z]{1,3}[-\s]?\d{3}[-\s]?[A-Z]{0,3}|\d[-\s]?[A-Z]{3}[-\s]?\d{3})\b/g,
+    "MEDIUM"
+  );
+
+  replacePattern(
+    "PERSON",
+    /\b(?:Monsieur|Madame|Mr|Mrs|Mme|M\.|Client|Utilisateur)\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]+)?\b/g,
     "MEDIUM"
   );
 
   replacePattern(
     "ADDRESS",
-    /\b(?:rue|avenue|av\.|boulevard|bd|chaussée|straat|laan|road|street)\s+[A-ZÀ-Ÿa-zà-ÿ0-9' -]+(?:\s+\d{1,4})?\b/gi,
-    "MEDIUM"
+    /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|avenue|road)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
+    "HIGH"
   );
 
   // =========================
@@ -118,76 +122,36 @@ export function protectPrompt(input, context = {}) {
   );
 
   replacePattern(
-    "BANK_ACCOUNT",
-    /\b(?:compte bancaire|bank account|account number|numero de compte|numéro de compte)\s*[:#-]?\s*[A-Z0-9\s-]{8,34}\b/gi,
-    "HIGH"
-  );
-
-  replacePattern(
     "SALARY",
-    /\b(?:salaire|salary|rémunération|remuneration)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:€|EUR|euro|euros)?\b/gi,
+    /\b(?:salaire|salary|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
     "HIGH"
   );
 
   replacePattern(
     "REVENUE",
-    /\b(?:chiffre d'affaires|revenue|turnover|CA)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:€|EUR|k€|M€|million|millions)?\b/gi,
+    /\b(?:chiffre d'affaires|revenu|revenue|turnover)\s*[:\-]?\s*\d{3,12}(?:[,.]\d{2})?\s*(?:€|EUR|euros|k€|m€)?\b/gi,
     "HIGH"
   );
 
   replacePattern(
     "MARGIN",
-    /\b(?:marge|margin|gross margin|net margin)\s*[:=]?\s*\d+(?:[.,]\d+)?\s?(?:%|€|EUR)?\b/gi,
+    /\b(?:marge|margin)\s*[:\-]?\s*\d{1,3}(?:[,.]\d{1,2})?\s*%?\b/gi,
     "HIGH"
   );
 
   // =========================
-  // Business sensitive / NIS2
-  // =========================
-
-  replacePattern(
-    "CLIENT_NAME",
-    /\b(?:client|customer|fournisseur|supplier|partner|partenaire)\s*[:=]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&' .-]{2,60}\b/g,
-    "HIGH"
-  );
-
-  replacePattern(
-    "CONTRACT_NUMBER",
-    /\b(?:contrat|contract|agreement|marché|tender)\s*(?:n°|no|number|#|:)?\s*[A-Z0-9-]{4,30}\b/gi,
-    "HIGH"
-  );
-
-  replacePattern(
-    "PRICING",
-    /\b(?:pricing|prix|tarif|tarification|price list|offre commerciale)\s*[:=]?\s*[A-Za-z0-9€%.,\s-]{3,80}\b/gi,
-    "HIGH"
-  );
-
-  replacePattern(
-    "ROADMAP",
-    /\b(?:roadmap|feuille de route|stratégie|strategy|business plan|plan stratégique)\b[\s\S]{0,120}/gi,
-    "HIGH"
-  );
-
-  // =========================
-  // Secrets / Credentials / ISO27001
+  // Secrets / Credentials
   // =========================
 
   replacePattern(
     "API_KEY",
-    /\b(?:sk-[A-Za-z0-9]{20,}|pk-[A-Za-z0-9]{20,}|api[_-]?key\s*[:=]\s*[A-Za-z0-9_\-]{12,})\b/gi,
+    /\b(?:sk-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|pk-[A-Za-z0-9_-]{20,}|api[_-]?key\s*[:=]\s*[A-Za-z0-9_\-]{12,})\b/gi,
     "CRITICAL"
   );
 
   replacePattern(
     "JWT",
     /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
-    "CRITICAL"
-  );
-
-  replacePattern(
-    "BEARER_TOKEN",
-    /\bBearer\s+[A-Za-z0-9._-]{20,}\b/g,
     "CRITICAL"
   );
 
@@ -210,13 +174,19 @@ export function protectPrompt(input, context = {}) {
   );
 
   // =========================
-  // Infrastructure / NIS2
+  // Technical Infrastructure
   // =========================
 
   replacePattern(
     "PRIVATE_IP",
     /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})\b/g,
     "HIGH"
+  );
+
+  replacePattern(
+    "PUBLIC_IP",
+    /\b(?!(?:10|127|169\.254|192\.168)\.)(?!(?:172\.(?:1[6-9]|2\d|3[0-1]))\.)(?:\d{1,3}\.){3}\d{1,3}\b/g,
+    "MEDIUM"
   );
 
   replacePattern(
@@ -232,101 +202,51 @@ export function protectPrompt(input, context = {}) {
   );
 
   // =========================
-// IPv4 Public
-// =========================
-
-replacePattern(
-  "PUBLIC_IP",
-  /\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b/g,
-  "HIGH"
-);
-
-// =========================
-// Private IPv4
-// =========================
-
-replacePattern(
-  "PRIVATE_IP",
-  /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})\b/g,
-  "CRITICAL"
-);
-
-// =========================
-// IPv4 + Port
-// =========================
-
-replacePattern(
-  "IP_PORT",
-  /\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d):\d{2,5}\b/g,
-  "CRITICAL"
-);
-
-// =========================
-// CIDR
-// =========================
-
-replacePattern(
-  "CIDR",
-  /\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/(?:[0-9]|[1-2][0-9]|3[0-2])\b/g,
-  "HIGH"
-);
-
-// =========================
-// IPv6
-// =========================
-
-replacePattern(
-  "IPV6",
-  /\b(?:[a-fA-F0-9]{1,4}:){2,7}[a-fA-F0-9]{1,4}\b/g,
-  "HIGH"
-);
-
-// =========================
-// Internal Hostnames
-// =========================
-
-replacePattern(
-  "HOSTNAME",
-  /\b[a-zA-Z0-9-]+(?:\.internal|\.local|\.corp|\.lan|\.priv)\b/g,
-  "HIGH"
-);
-
-// =========================
-// Internal URLs
-// =========================
-
-replacePattern(
-  "INTERNAL_URL",
-  /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+|[a-zA-Z0-9.-]+\.internal)[^\s]*/gi,
-  "CRITICAL"
-);
-
+  // Business sensitive
   // =========================
-  // Business keywords
-  // =========================
+
+  replacePattern(
+    "CONTRACT_NUMBER",
+    /\b(?:contrat|contract|agreement)\s*[:#\-]?\s*[A-Z0-9\-]{5,30}\b/gi,
+    "HIGH"
+  );
+
+  replacePattern(
+    "CUSTOMER_NAME",
+    /\b(?:client|customer)\s*[:\-]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&.' -]{2,60}\b/g,
+    "HIGH"
+  );
+
+  replacePattern(
+    "SUPPLIER_NAME",
+    /\b(?:fournisseur|supplier|vendor)\s*[:\-]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&.' -]{2,60}\b/g,
+    "HIGH"
+  );
 
   const businessKeywords = [
     "confidentiel",
-    "strictement confidentiel",
+    "confidential",
     "contrat",
+    "contract",
     "salaire",
     "salary",
-    "marge",
-    "chiffre d'affaires",
+    "licenciement",
+    "client stratégique",
+    "fournisseur",
+    "supplier",
+    "offre commerciale",
+    "appel d'offre",
     "pricing",
     "roadmap",
     "stratégie",
-    "business plan",
-    "licenciement",
-    "client stratégique",
-    "offre commerciale",
-    "appel d'offre",
+    "strategy",
     "architecture interne",
     "incident sécurité",
     "vulnérabilité",
     "audit",
     "NIS2",
     "ISO27001",
+    "DORA",
     "GDPR",
   ];
 
@@ -349,10 +269,21 @@ replacePattern(
 
   score += businessHits.length * 10;
 
-  if (context.modelType === "public_llm") score += 15;
-  if (context.mfaVerified === "false" || context.mfaVerified === false) score += 15;
-  if (["Finance", "HR", "Legal", "Security"].includes(context.department)) score += 10;
-  if (context.country && context.country !== "BE") score += 5;
+  if (context.modelType === "public_llm" || context.modelType === "openai") {
+    score += 10;
+  }
+
+  if (context.mfaVerified === "false" || context.mfaVerified === false) {
+    score += 15;
+  }
+
+  if (["Finance", "HR", "Legal", "Security"].includes(context.department)) {
+    score += 10;
+  }
+
+  if (context.country && context.country !== "BE") {
+    score += 5;
+  }
 
   score = Math.min(score, 100);
 
@@ -386,6 +317,7 @@ replacePattern(
     stats: {
       totalFindings: findings.length,
       tokenTypes: [...new Set(findings.map((f) => f.type))],
+      encryptedTokens: true,
     },
   };
 }

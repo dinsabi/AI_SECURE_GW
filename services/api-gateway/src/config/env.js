@@ -11,4 +11,7 @@ export const env = {
   OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4o-mini",
 
   LLM_URL: process.env.LLM_URL || "http://llm-mock:3006",
+
+  TOKEN_ENCRYPTION_KEY:
+    process.env.TOKEN_ENCRYPTION_KEY || "12345678901234567890123456789012",
 };
