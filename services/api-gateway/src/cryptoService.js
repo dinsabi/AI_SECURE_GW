@@ -19,7 +19,7 @@ export function encryptValue(value) {
   const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv);
 
   const encrypted = Buffer.concat([
-    cipher.update(String(value), "utf8"),
+    cipher.update(String(value || ""), "utf8"),
     cipher.final(),
   ]);
 
@@ -34,6 +34,10 @@ export function encryptValue(value) {
 }
 
 export function decryptValue(payload) {
+  if (!payload?.encrypted || !payload?.iv || !payload?.authTag) {
+    throw new Error("Invalid encrypted payload");
+  }
+
   const decipher = crypto.createDecipheriv(
     ALGORITHM,
     getKey(),
