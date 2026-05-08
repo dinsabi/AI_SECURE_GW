@@ -337,7 +337,7 @@ export default function App() {
 
         <input
           type="file"
-          accept=".txt,.csv,.json,.docx"
+          accept=".txt,.csv,.json,.docx,.pdf"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
 
