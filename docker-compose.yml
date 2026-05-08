@@ -36,7 +36,7 @@ services:
       KEYCLOAK_REALM: aigw
       KEYCLOAK_CLIENT_ID: ai-secure-gateway
       KEYCLOAK_CLIENT_SECRET: 53fc89a1-574b-4d54-beb5-abaa94b276a1
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      
 
       # ======================================
       # OPENAI / CHATGPT
@@ -66,7 +66,7 @@ services:
       # ======================================
       # TOKENIZATION / ENCRYPTION
       # ======================================
-      TOKEN_ENCRYPTION_KEY: "change-this-with-32-char-secret"
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
 
     depends_on:
       - keycloak
