@@ -332,7 +332,7 @@ export default function App() {
         <p>
           Upload d’un fichier pour analyse NIS2 / GDPR / ISO27001 avant usage
           avec une IA. Formats MVP supportés :{" "}
-          <strong>.txt, .csv, .json, .docx</strong>.
+          <strong>.txt, .csv, .json, .docx, .pdf</strong>.
         </p>
 
         <input
