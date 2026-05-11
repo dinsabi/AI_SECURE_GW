@@ -35,7 +35,7 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: aigw
       KEYCLOAK_CLIENT_ID: ai-secure-gateway
-      KEYCLOAK_CLIENT_SECRET: 915f2c13-e475-4f39-8d2a-071880247b143
+      KEYCLOAK_CLIENT_SECRET: yI2E82wa3JljhEWof3FcOybMsA53qTtq
       
 
       # ======================================
