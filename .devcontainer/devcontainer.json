@@ -1,0 +1,40 @@
+{
+  "name": "AI Secure Gateway",
+
+  "forwardPorts": [
+    5173,
+    8080,
+    5432,
+    8081,
+    9200
+  ],
+
+  "portsAttributes": {
+    "5173": {
+      "label": "Frontend React",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    },
+
+    "8080": {
+      "label": "AI Gateway API",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+
+    "5432": {
+      "label": "PostgreSQL",
+      "visibility": "private"
+    },
+
+    "8081": {
+      "label": "Keycloak",
+      "visibility": "private"
+    },
+
+    "9200": {
+      "label": "Elasticsearch",
+      "visibility": "private"
+    }
+  }
+}
