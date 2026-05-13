@@ -17,6 +17,29 @@ export const upload = multer({
   },
 });
 
+function publicFindings(findings = []) {
+  return findings.map((f) => ({
+    type: f.type,
+    token: f.token,
+    severity: f.severity,
+    originalLength: f.originalLength,
+    encrypted: Boolean(f.encrypted),
+  }));
+}
+
+function publicResponse(llmResponse = {}) {
+  return {
+    provider: llmResponse.provider,
+    routedTo: llmResponse.routedTo,
+    routingDecision: llmResponse.routingDecision,
+    model: llmResponse.model,
+    answer: llmResponse.answer,
+    error: llmResponse.error,
+    message: llmResponse.message,
+    responseSecurity: llmResponse.responseSecurity,
+  };
+}
+
 export async function processFileAnalyzeRequest(req, res, openai) {
   try {
     if (!req.file) {
@@ -95,6 +118,7 @@ export async function processFileAnalyzeRequest(req, res, openai) {
       auditEvent: "AI_FILE_SECURITY_CHECK",
       responseAnalyzed: true,
       promptInjectionChecked: true,
+      sensitiveDataReturnedToFrontend: false,
     };
 
     await writeAuditEvent({
@@ -111,6 +135,7 @@ export async function processFileAnalyzeRequest(req, res, openai) {
       businessHits: result.businessHits,
       originalText: result.originalText,
       protectedText: result.protectedText,
+      tokenMap: result.tokenMap,
       originalResponse: llmResponse.originalAnswer,
       protectedResponse: llmResponse.answer,
       responseDecision: llmResponse.responseSecurity?.decision,
@@ -131,14 +156,12 @@ export async function processFileAnalyzeRequest(req, res, openai) {
       decision: result.decision,
       riskScore: result.riskScore,
       riskLevel: result.riskLevel,
-      originalText: result.originalText,
       protectedText: result.protectedText,
-      findings: result.findings,
+      findings: publicFindings(result.findings),
       businessHits: result.businessHits,
-      tokenMap: result.tokenMap,
       stats: result.stats,
       injection,
-      response: llmResponse,
+      response: publicResponse(llmResponse),
       grc,
     });
   } catch (error) {

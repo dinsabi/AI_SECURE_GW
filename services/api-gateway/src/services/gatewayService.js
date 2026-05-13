@@ -8,6 +8,29 @@ import {
 } from "./promptInjectionService.js";
 import { readUserFromHeaders } from "../middleware/auth.js";
 
+function publicFindings(findings = []) {
+  return findings.map((f) => ({
+    type: f.type,
+    token: f.token,
+    severity: f.severity,
+    originalLength: f.originalLength,
+    encrypted: Boolean(f.encrypted),
+  }));
+}
+
+function publicResponse(llmResponse = {}) {
+  return {
+    provider: llmResponse.provider,
+    routedTo: llmResponse.routedTo,
+    routingDecision: llmResponse.routingDecision,
+    model: llmResponse.model,
+    answer: llmResponse.answer,
+    error: llmResponse.error,
+    message: llmResponse.message,
+    responseSecurity: llmResponse.responseSecurity,
+  };
+}
+
 export async function processGenerateRequest(req, res, routeName, openai) {
   const prompt = req.body.prompt || "";
   const modelType = req.body.modelType || "openai";
@@ -69,6 +92,7 @@ export async function processGenerateRequest(req, res, routeName, openai) {
     auditEvent: "AI_PROMPT_SECURITY_CHECK",
     responseAnalyzed: true,
     promptInjectionChecked: true,
+    sensitiveDataReturnedToFrontend: false,
   };
 
   await writeAuditEvent({
@@ -85,6 +109,7 @@ export async function processGenerateRequest(req, res, routeName, openai) {
     businessHits: protection.businessHits,
     originalPrompt: protection.originalText,
     protectedPrompt: protection.protectedText,
+    tokenMap: protection.tokenMap,
     originalResponse: llmResponse.originalAnswer,
     protectedResponse: llmResponse.answer,
     responseDecision: llmResponse.responseSecurity?.decision,
@@ -101,14 +126,12 @@ export async function processGenerateRequest(req, res, routeName, openai) {
     decision: protection.decision,
     riskScore: protection.score,
     riskLevel: protection.riskLevel,
-    originalPrompt: protection.originalText,
     protectedPrompt: protection.protectedText,
-    findings: protection.findings,
+    findings: publicFindings(protection.findings),
     businessHits: protection.businessHits,
-    tokenMap: protection.tokenMap,
     stats: protection.stats,
     injection,
-    response: llmResponse,
+    response: publicResponse(llmResponse),
     grc,
   });
 }
@@ -149,6 +172,7 @@ export async function processGatewayRequest(req, res, routeName, openai) {
       auditEvent: "AI_PROMPT_SECURITY_CHECK_BLOCKED",
       responseAnalyzed: false,
       promptInjectionChecked: true,
+      sensitiveDataReturnedToFrontend: false,
     };
 
     await writeAuditEvent({
@@ -165,6 +189,7 @@ export async function processGatewayRequest(req, res, routeName, openai) {
       businessHits: protection.businessHits,
       originalPrompt: protection.originalText,
       protectedPrompt: protection.protectedText,
+      tokenMap: protection.tokenMap,
       grc,
     });
 
@@ -178,11 +203,9 @@ export async function processGatewayRequest(req, res, routeName, openai) {
       decision: protection.decision,
       riskScore: protection.score,
       riskLevel: protection.riskLevel,
-      originalPrompt: protection.originalText,
       protectedPrompt: protection.protectedText,
-      findings: protection.findings,
+      findings: publicFindings(protection.findings),
       businessHits: protection.businessHits,
-      tokenMap: protection.tokenMap,
       injection,
       message:
         "Prompt blocked by AI Secure Gateway policy and was not sent to any LLM.",
@@ -207,6 +230,7 @@ export async function processGatewayRequest(req, res, routeName, openai) {
     auditEvent: "AI_PROMPT_SECURITY_CHECK",
     responseAnalyzed: true,
     promptInjectionChecked: true,
+    sensitiveDataReturnedToFrontend: false,
   };
 
   await writeAuditEvent({
@@ -223,6 +247,7 @@ export async function processGatewayRequest(req, res, routeName, openai) {
     businessHits: protection.businessHits,
     originalPrompt: protection.originalText,
     protectedPrompt: protection.protectedText,
+    tokenMap: protection.tokenMap,
     originalResponse: llmResponse.originalAnswer,
     protectedResponse: llmResponse.answer,
     responseDecision: llmResponse.responseSecurity?.decision,
@@ -241,14 +266,12 @@ export async function processGatewayRequest(req, res, routeName, openai) {
     decision: protection.decision,
     riskScore: protection.score,
     riskLevel: protection.riskLevel,
-    originalPrompt: protection.originalText,
     protectedPrompt: protection.protectedText,
-    findings: protection.findings,
+    findings: publicFindings(protection.findings),
     businessHits: protection.businessHits,
-    tokenMap: protection.tokenMap,
     stats: protection.stats,
     injection,
-    response: llmResponse,
+    response: publicResponse(llmResponse),
     grc,
   });
 }
