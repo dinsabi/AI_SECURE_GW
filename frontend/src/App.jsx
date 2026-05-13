@@ -23,13 +23,15 @@ export default function App() {
   const [password, setPassword] = useState("admin");
   const [token, setToken] = useState("");
 
+  const [modelType, setModelType] = useState("mock");
+
   const [prompt, setPrompt] = useState(
     "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225"
   );
 
   const [file, setFile] = useState(null);
   const [result, setResult] = useState("");
-  const [status, setStatus] = useState("")
+  const [status, setStatus] = useState("");
   const [dashboard, setDashboard] = useState(null);
 
   const parseResponse = async (res) => {
@@ -130,7 +132,7 @@ export default function App() {
         mode: "cors",
         body: JSON.stringify({
           prompt,
-          modelType: "mock",
+          modelType,
           frameworks: ["NIS2", "GDPR", "ISO27001"],
         }),
       });
@@ -175,7 +177,7 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("modelType", "openai");
+      formData.append("modelType", modelType);
       formData.append("frameworks", "NIS2,GDPR,ISO27001");
 
       const res = await fetch(`${API_BASE}/v1/files/analyze`, {
@@ -302,11 +304,30 @@ export default function App() {
       <hr style={{ marginTop: 30 }} />
 
       <div style={{ marginTop: 30 }}>
-        <h2>2. Prompt Protection</h2>
+        <h2>2. AI Provider</h2>
+
+        <select
+          value={modelType}
+          onChange={(e) => setModelType(e.target.value)}
+          style={{ width: 300, padding: 6 }}
+        >
+          <option value="mock">Mock LLM</option>
+          <option value="openai">OpenAI / ChatGPT</option>
+        </select>
+
+        <p>
+          <strong>Selected provider:</strong> {modelType}
+        </p>
+      </div>
+
+      <hr style={{ marginTop: 30 }} />
+
+      <div style={{ marginTop: 30 }}>
+        <h2>3. Prompt Protection</h2>
 
         <p>
           Détection et tokenisation des emails, IBAN, mots de passe, clés API,
-          IP internes, secrets et données sensibles avant envoi vers OpenAI.
+          IP internes, secrets et données sensibles avant envoi vers l’IA.
         </p>
 
         <textarea
@@ -327,17 +348,17 @@ export default function App() {
       <hr style={{ marginTop: 30 }} />
 
       <div style={{ marginTop: 30 }}>
-        <h2>3. File Protection</h2>
+        <h2>4. File Protection</h2>
 
         <p>
           Upload d’un fichier pour analyse NIS2 / GDPR / ISO27001 avant usage
-          avec une IA. Formats MVP supportés :{" "}
-          <strong>.txt, .csv, .json, .docx, .pdf</strong>.
+          avec une IA. Formats supportés :{" "}
+          <strong>.txt, .csv, .json, .log, .docx, .pdf, .xlsx, .xls</strong>.
         </p>
 
         <input
           type="file"
-          accept=".txt,.csv,.json,.docx,.pdf"
+          accept=".txt,.csv,.json,.log,.docx,.pdf,.xlsx,.xls"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
 
@@ -356,7 +377,7 @@ export default function App() {
       <hr style={{ marginTop: 30 }} />
 
       <div style={{ marginTop: 30 }}>
-        <h2>4. SOC / GRC Dashboard</h2>
+        <h2>5. SOC / GRC Dashboard</h2>
 
         <p>
           Charge les événements PostgreSQL : prompts analysés, fichiers analysés,
