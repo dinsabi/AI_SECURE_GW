@@ -1,5 +1,6 @@
 import { useState } from "react";
 import SocDashboard from "./components/SocDashboard.jsx";
+import SecurityResult from "./components/SecurityResult.jsx";
 
 function getApiBase() {
   const origin = window.location.origin;
@@ -30,7 +31,7 @@ export default function App() {
   );
 
   const [file, setFile] = useState(null);
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState(null);
   const [status, setStatus] = useState("");
   const [dashboard, setDashboard] = useState(null);
 
@@ -55,7 +56,7 @@ export default function App() {
 
   const handleLogin = async () => {
     setStatus("Connexion à Keycloak...");
-    setResult("");
+    setResult(null);
     setDashboard(null);
 
     try {
@@ -75,39 +76,27 @@ export default function App() {
 
       if (!res.ok) {
         setStatus("Login failed");
-        setResult(JSON.stringify(data, null, 2));
+        setResult(data);
         alert("Login failed: " + JSON.stringify(data));
         return;
       }
 
       setToken(data.access_token);
       setStatus("Login OK ✅");
-      setResult(
-        JSON.stringify(
-          {
-            ok: true,
-            message: "Login OK",
-            api: API_BASE,
-          },
-          null,
-          2
-        )
-      );
+      setResult({
+        ok: true,
+        message: "Login OK",
+        api: API_BASE,
+      });
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setStatus("Erreur connexion API");
-      setResult(
-        JSON.stringify(
-          {
-            ok: false,
-            error: "Erreur connexion API",
-            message: err.message,
-            api: API_BASE,
-          },
-          null,
-          2
-        )
-      );
+      setResult({
+        ok: false,
+        error: "Erreur connexion API",
+        message: err.message,
+        api: API_BASE,
+      });
       alert("Erreur connexion API: " + err.message + "\nAPI_BASE=" + API_BASE);
     }
   };
@@ -119,7 +108,7 @@ export default function App() {
     }
 
     setStatus("Analyse du prompt en cours...");
-    setResult("");
+    setResult(null);
     setDashboard(null);
 
     try {
@@ -140,22 +129,16 @@ export default function App() {
       const data = await parseResponse(res);
 
       setStatus(res.ok ? "Analyse prompt OK ✅" : "Analyse prompt failed");
-      setResult(JSON.stringify(data, null, 2));
+      setResult(data);
     } catch (err) {
       console.error("PROMPT ANALYZE ERROR:", err);
       setStatus("Erreur analyse prompt");
-      setResult(
-        JSON.stringify(
-          {
-            ok: false,
-            error: "Erreur analyse prompt",
-            message: err.message,
-            api: API_BASE,
-          },
-          null,
-          2
-        )
-      );
+      setResult({
+        ok: false,
+        error: "Erreur analyse prompt",
+        message: err.message,
+        api: API_BASE,
+      });
     }
   };
 
@@ -171,7 +154,7 @@ export default function App() {
     }
 
     setStatus("Analyse du fichier uploadé en cours...");
-    setResult("");
+    setResult(null);
     setDashboard(null);
 
     try {
@@ -192,22 +175,16 @@ export default function App() {
       const data = await parseResponse(res);
 
       setStatus(res.ok ? "Analyse fichier OK ✅" : "Analyse fichier failed");
-      setResult(JSON.stringify(data, null, 2));
+      setResult(data);
     } catch (err) {
       console.error("FILE ANALYZE ERROR:", err);
       setStatus("Erreur analyse fichier");
-      setResult(
-        JSON.stringify(
-          {
-            ok: false,
-            error: "Erreur analyse fichier",
-            message: err.message,
-            api: API_BASE,
-          },
-          null,
-          2
-        )
-      );
+      setResult({
+        ok: false,
+        error: "Erreur analyse fichier",
+        message: err.message,
+        api: API_BASE,
+      });
     }
   };
 
@@ -218,7 +195,7 @@ export default function App() {
     }
 
     setStatus("Chargement du dashboard SOC / GRC...");
-    setResult("");
+    setResult(null);
 
     try {
       const res = await fetch(`${API_BASE}/v1/dashboard/risk-summary`, {
@@ -234,29 +211,23 @@ export default function App() {
       if (!res.ok) {
         setStatus("Erreur dashboard SOC");
         setDashboard(null);
-        setResult(JSON.stringify(data, null, 2));
+        setResult(data);
         return;
       }
 
       setDashboard(data);
       setStatus("Dashboard SOC / GRC chargé ✅");
-      setResult(JSON.stringify(data, null, 2));
+      setResult(data);
     } catch (err) {
       console.error("DASHBOARD ERROR:", err);
       setStatus("Erreur dashboard SOC");
       setDashboard(null);
-      setResult(
-        JSON.stringify(
-          {
-            ok: false,
-            error: "Erreur dashboard SOC",
-            message: err.message,
-            api: API_BASE,
-          },
-          null,
-          2
-        )
-      );
+      setResult({
+        ok: false,
+        error: "Erreur dashboard SOC",
+        message: err.message,
+        api: API_BASE,
+      });
     }
   };
 
@@ -391,21 +362,7 @@ export default function App() {
 
       <hr style={{ marginTop: 30 }} />
 
-      <h2>Raw JSON Result</h2>
-
-      <pre
-        style={{
-          marginTop: 20,
-          background: "#111",
-          color: "#0f0",
-          padding: 20,
-          whiteSpace: "pre-wrap",
-          maxHeight: 600,
-          overflow: "auto",
-        }}
-      >
-        {result}
-      </pre>
+      <SecurityResult data={result} />
     </div>
   );
 }
