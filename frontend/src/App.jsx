@@ -1,7 +1,13 @@
 import { useState } from "react";
+
 import MainLayout from "./layout/MainLayout.jsx";
-import SocDashboard from "./components/SocDashboard.jsx";
-import SecurityResult from "./components/SecurityResult.jsx";
+
+import DashboardPage from "./pages/DashboardPage.jsx";
+import PlaygroundPage from "./pages/PlaygroundPage.jsx";
+import FileProtectionPage from "./pages/FileProtectionPage.jsx";
+import AuditPage from "./pages/AuditPage.jsx";
+import PoliciesPage from "./pages/PoliciesPage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
 
 function getApiBase() {
   const origin = window.location.origin;
@@ -39,6 +45,7 @@ export default function App() {
 
   const parseResponse = async (res) => {
     const text = await res.text();
+
     try {
       return text ? JSON.parse(text) : {};
     } catch {
@@ -62,9 +69,14 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/login/keycloak`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         mode: "cors",
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username,
+          password,
+        }),
       });
 
       const data = await parseResponse(res);
@@ -77,8 +89,13 @@ export default function App() {
 
       setToken(data.access_token);
       setStatus("Login OK ✅");
-      setResult({ ok: true, message: "Login OK", api: API_BASE });
+      setResult({
+        ok: true,
+        message: "Login OK",
+        api: API_BASE,
+      });
     } catch (err) {
+      console.error("LOGIN ERROR:", err);
       setStatus("Erreur connexion API");
       setResult({
         ok: false,
@@ -114,9 +131,11 @@ export default function App() {
       });
 
       const data = await parseResponse(res);
+
       setStatus(res.ok ? "Analyse prompt OK ✅" : "Analyse prompt failed");
       setResult(data);
     } catch (err) {
+      console.error("PROMPT ANALYZE ERROR:", err);
       setStatus("Erreur analyse prompt");
       setResult({
         ok: false,
@@ -149,15 +168,19 @@ export default function App() {
 
       const res = await fetch(`${API_BASE}/v1/files/analyze`, {
         method: "POST",
-        headers: { ...getAuthHeaders() },
+        headers: {
+          ...getAuthHeaders(),
+        },
         mode: "cors",
         body: formData,
       });
 
       const data = await parseResponse(res);
+
       setStatus(res.ok ? "Analyse fichier OK ✅" : "Analyse fichier failed");
       setResult(data);
     } catch (err) {
+      console.error("FILE ANALYZE ERROR:", err);
       setStatus("Erreur analyse fichier");
       setResult({
         ok: false,
@@ -180,7 +203,9 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/v1/dashboard/risk-summary`, {
         method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         mode: "cors",
       });
 
@@ -197,6 +222,7 @@ export default function App() {
       setStatus("Dashboard SOC / GRC chargé ✅");
       setResult(data);
     } catch (err) {
+      console.error("DASHBOARD ERROR:", err);
       setStatus("Erreur dashboard SOC");
       setDashboard(null);
       setResult({
@@ -208,145 +234,76 @@ export default function App() {
     }
   };
 
+  function renderPage() {
+    if (activePage === "dashboard") {
+      return (
+        <DashboardPage
+          dashboard={dashboard}
+          onLoadDashboard={handleLoadDashboard}
+        />
+      );
+    }
+
+    if (activePage === "playground") {
+      return (
+        <PlaygroundPage
+          username={username}
+          setUsername={setUsername}
+          password={password}
+          setPassword={setPassword}
+          modelType={modelType}
+          setModelType={setModelType}
+          prompt={prompt}
+          setPrompt={setPrompt}
+          status={status}
+          result={result}
+          onLogin={handleLogin}
+          onAnalyzePrompt={handleAnalyzePrompt}
+        />
+      );
+    }
+
+    if (activePage === "files") {
+      return (
+        <FileProtectionPage
+          file={file}
+          setFile={setFile}
+          modelType={modelType}
+          setModelType={setModelType}
+          result={result}
+          onAnalyzeFile={handleAnalyzeFile}
+        />
+      );
+    }
+
+    if (activePage === "audit") {
+      return (
+        <AuditPage
+          dashboard={dashboard}
+          onLoadDashboard={handleLoadDashboard}
+        />
+      );
+    }
+
+    if (activePage === "policies") {
+      return <PoliciesPage />;
+    }
+
+    if (activePage === "settings") {
+      return <SettingsPage />;
+    }
+
+    return (
+      <DashboardPage
+        dashboard={dashboard}
+        onLoadDashboard={handleLoadDashboard}
+      />
+    );
+  }
+
   return (
     <MainLayout activePage={activePage} setActivePage={setActivePage}>
-      <div>
-        <h1>AI Secure Gateway</h1>
-
-        <p>
-          Secure AI access with Keycloak IAM, RBAC, MFA header, risk scoring,
-          policy enforcement, response analysis, file protection and audit trail
-          for NIS2 / GDPR / ISO27001.
-        </p>
-
-        <p>
-          <strong>API:</strong> {API_BASE}
-        </p>
-
-        <p>
-          <strong>Status:</strong> {status || "Ready"}
-        </p>
-
-        {activePage === "dashboard" && (
-          <>
-            <h2>Dashboard SOC / GRC</h2>
-            <button onClick={handleLoadDashboard}>Load SOC Dashboard</button>
-            <SocDashboard dashboard={dashboard} />
-          </>
-        )}
-
-        {activePage === "playground" && (
-          <>
-            <h2>AI Playground sécurisé</h2>
-
-            <h3>1. Keycloak Login</h3>
-
-            <input
-              placeholder="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              style={{ display: "block", marginBottom: 10, width: 300 }}
-            />
-
-            <input
-              type="password"
-              placeholder="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ display: "block", marginBottom: 10, width: 300 }}
-            />
-
-            <button onClick={handleLogin}>Login with Keycloak</button>
-
-            <h3 style={{ marginTop: 30 }}>2. AI Provider</h3>
-
-            <select
-              value={modelType}
-              onChange={(e) => setModelType(e.target.value)}
-              style={{ width: 300, padding: 6 }}
-            >
-              <option value="mock">Mock LLM</option>
-              <option value="openai">OpenAI / ChatGPT</option>
-            </select>
-
-            <h3 style={{ marginTop: 30 }}>3. Prompt Protection</h3>
-
-            <textarea
-              rows="7"
-              style={{ width: "100%" }}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-
-            <br />
-
-            <button style={{ marginTop: 10 }} onClick={handleAnalyzePrompt}>
-              Analyze & Protect Prompt
-            </button>
-
-            <SecurityResult data={result} />
-          </>
-        )}
-
-        {activePage === "files" && (
-          <>
-            <h2>File Protection</h2>
-
-            <p>
-              Formats supportés :{" "}
-              <strong>.txt, .csv, .json, .log, .docx, .pdf, .xlsx, .xls</strong>
-            </p>
-
-            <input
-              type="file"
-              accept=".txt,.csv,.json,.log,.docx,.pdf,.xlsx,.xls"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-            />
-
-            {file && (
-              <p>
-                <strong>Fichier sélectionné :</strong> {file.name} —{" "}
-                {(file.size / 1024).toFixed(2)} KB
-              </p>
-            )}
-
-            <button style={{ marginTop: 10 }} onClick={handleAnalyzeFile}>
-              Analyze Uploaded File
-            </button>
-
-            <SecurityResult data={result} />
-          </>
-        )}
-
-        {activePage === "audit" && (
-          <>
-            <h2>Audit Logs</h2>
-            <p>Charge le dashboard SOC pour voir les événements audités.</p>
-            <button onClick={handleLoadDashboard}>Load Audit Logs</button>
-            <SocDashboard dashboard={dashboard} />
-          </>
-        )}
-
-        {activePage === "policies" && (
-          <>
-            <h2>Policies</h2>
-            <p>
-              Prochaine étape : interface de gestion des règles NIS2 / GDPR /
-              ISO27001.
-            </p>
-          </>
-        )}
-
-        {activePage === "settings" && (
-          <>
-            <h2>Settings</h2>
-            <p>
-              Configuration future : providers IA, tenants, secrets, policies,
-              SIEM.
-            </p>
-          </>
-        )}
-      </div>
+      {renderPage()}
     </MainLayout>
   );
 }
