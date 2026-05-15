@@ -1,11 +1,13 @@
-import { Box, Chip, Typography } from "@mui/material";
-import { Shield, RadioTower } from "lucide-react";
+import { Avatar, Box, Button, Chip, Typography } from "@mui/material";
+import { LogOut, RadioTower, Shield } from "lucide-react";
 
-export default function Header() {
+import logo from "../assets/cidns-logo.jpeg";
+
+export default function Header({ username = "admin", onLogout }) {
   return (
     <Box
       sx={{
-        height: 72,
+        height: 76,
         px: 3,
         display: "flex",
         alignItems: "center",
@@ -15,13 +17,27 @@ export default function Header() {
         color: "#fff",
       }}
     >
-      <Box>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          AI Security Operations Center
-        </Typography>
-        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
-          Zero Trust gateway for enterprise AI usage
-        </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Avatar
+          src={logo}
+          alt="CIDNS"
+          sx={{
+            width: 44,
+            height: 44,
+            background: "#fff",
+            border: "2px solid #38bdf8",
+          }}
+        />
+
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            AI Security Operations Center
+          </Typography>
+
+          <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+            Zero Trust gateway for enterprise AI usage
+          </Typography>
+        </Box>
       </Box>
 
       <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
@@ -44,6 +60,32 @@ export default function Header() {
             border: "1px solid rgba(14, 165, 233, 0.35)",
           }}
         />
+
+        <Chip
+          label={`User: ${username}`}
+          sx={{
+            color: "#e2e8f0",
+            background: "rgba(148, 163, 184, 0.12)",
+            border: "1px solid rgba(148, 163, 184, 0.25)",
+          }}
+        />
+
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<LogOut size={16} />}
+          onClick={onLogout}
+          sx={{
+            color: "#fca5a5",
+            borderColor: "rgba(248, 113, 113, 0.45)",
+            "&:hover": {
+              borderColor: "#ef4444",
+              background: "rgba(239, 68, 68, 0.08)",
+            },
+          }}
+        >
+          Logout
+        </Button>
       </Box>
     </Box>
   );
