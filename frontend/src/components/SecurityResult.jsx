@@ -6,26 +6,161 @@ import {
   Chip,
   Divider,
   Grid,
+  Stack,
   Typography,
 } from "@mui/material";
+
+import {
+  AlertTriangle,
+  Bot,
+  CheckCircle,
+  Database,
+  FileWarning,
+  KeyRound,
+  Landmark,
+  Network,
+  ShieldAlert,
+  UserRound,
+} from "lucide-react";
 
 function getRiskColor(level) {
   switch (level) {
     case "LOW":
       return "success";
-
     case "MEDIUM":
       return "warning";
-
     case "HIGH":
       return "error";
-
     case "CRITICAL":
       return "secondary";
-
     default:
       return "default";
   }
+}
+
+function getCategory(type = "") {
+  const t = type.toUpperCase();
+
+  if (
+    [
+      "OPENAI_API_KEY",
+      "API_KEY",
+      "JWT_TOKEN",
+      "BEARER_TOKEN",
+      "PASSWORD",
+      "PRIVATE_KEY",
+      "AWS_ACCESS_KEY",
+      "AWS_SECRET_KEY",
+      "GITHUB_TOKEN",
+      "AZURE_SECRET",
+      "CONNECTION_STRING",
+    ].includes(t)
+  ) {
+    return {
+      label: "Secrets / Credentials",
+      color: "error",
+      icon: <KeyRound size={16} />,
+    };
+  }
+
+  if (
+    [
+      "EMAIL",
+      "PHONE",
+      "NATIONAL_ID_BE",
+      "DATE_OF_BIRTH",
+      "ADDRESS",
+      "PASSPORT_NUMBER",
+      "DRIVING_LICENSE",
+      "LICENSE_PLATE",
+    ].includes(t)
+  ) {
+    return {
+      label: "Personal Data / GDPR",
+      color: "info",
+      icon: <UserRound size={16} />,
+    };
+  }
+
+  if (
+    [
+      "IBAN",
+      "CREDIT_CARD",
+      "VAT",
+      "SALARY",
+      "REVENUE",
+      "MARGIN",
+    ].includes(t)
+  ) {
+    return {
+      label: "Financial Data",
+      color: "warning",
+      icon: <Landmark size={16} />,
+    };
+  }
+
+  if (
+    [
+      "PRIVATE_IP",
+      "PUBLIC_IP",
+      "HOSTNAME",
+      "INTERNAL_URL",
+    ].includes(t)
+  ) {
+    return {
+      label: "Infrastructure",
+      color: "secondary",
+      icon: <Network size={16} />,
+    };
+  }
+
+  if (
+    [
+      "CONTRACT_NUMBER",
+      "CUSTOMER_NAME",
+      "SUPPLIER_NAME",
+    ].includes(t)
+  ) {
+    return {
+      label: "Business Sensitive",
+      color: "warning",
+      icon: <Database size={16} />,
+    };
+  }
+
+  return {
+    label: "Sensitive Data",
+    color: "default",
+    icon: <ShieldAlert size={16} />,
+  };
+}
+
+function groupFindings(findings = []) {
+  const grouped = {};
+
+  for (const finding of findings) {
+    const category = getCategory(finding.type).label;
+
+    if (!grouped[category]) {
+      grouped[category] = [];
+    }
+
+    grouped[category].push(finding);
+  }
+
+  return grouped;
+}
+
+function getDecisionIcon(decision = "") {
+  if (decision.includes("BLOCK")) {
+    return <AlertTriangle size={22} color="#ef4444" />;
+  }
+
+  if (decision.includes("MASK")) {
+    return <ShieldAlert size={22} color="#f59e0b" />;
+  }
+
+  return <CheckCircle size={22} color="#22c55e" />;
 }
 
 export default function SecurityResult({ data }) {
@@ -34,45 +169,32 @@ export default function SecurityResult({ data }) {
   }
 
   const findings = data.findings || [];
+  const groupedFindings = groupFindings(findings);
   const responseSecurity = data.response?.responseSecurity || {};
+  const frameworks = data.stats?.frameworks || data.frameworks || [];
 
   return (
     <Box sx={{ mt: 3 }}>
       <Grid container spacing={2}>
         <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              background: "#111827",
-              color: "#fff",
-              border: "1px solid #1f2937",
-            }}
-          >
+          <Card sx={{ background: "#111827", color: "#fff" }}>
             <CardContent>
-              <Typography sx={{ color: "#94a3b8" }}>
-                Decision
-              </Typography>
-
-              <Typography variant="h6" sx={{ mt: 1 }}>
-                {data.decision || "UNKNOWN"}
-              </Typography>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                {getDecisionIcon(data.decision || "")}
+                <Box>
+                  <Typography sx={{ color: "#94a3b8" }}>Decision</Typography>
+                  <Typography variant="h6">{data.decision || "UNKNOWN"}</Typography>
+                </Box>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
 
         <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              background: "#111827",
-              color: "#fff",
-              border: "1px solid #1f2937",
-            }}
-          >
+          <Card sx={{ background: "#111827", color: "#fff" }}>
             <CardContent>
-              <Typography sx={{ color: "#94a3b8" }}>
-                Risk Score
-              </Typography>
-
-              <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>
+              <Typography sx={{ color: "#94a3b8" }}>Risk Score</Typography>
+              <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>
                 {data.riskScore || 0}
               </Typography>
             </CardContent>
@@ -80,22 +202,14 @@ export default function SecurityResult({ data }) {
         </Grid>
 
         <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              background: "#111827",
-              color: "#fff",
-              border: "1px solid #1f2937",
-            }}
-          >
+          <Card sx={{ background: "#111827", color: "#fff" }}>
             <CardContent>
-              <Typography sx={{ color: "#94a3b8" }}>
-                Risk Level
-              </Typography>
-
+              <Typography sx={{ color: "#94a3b8" }}>Risk Level</Typography>
               <Box sx={{ mt: 2 }}>
                 <Chip
                   label={data.riskLevel || "UNKNOWN"}
                   color={getRiskColor(data.riskLevel)}
+                  sx={{ fontWeight: 800 }}
                 />
               </Box>
             </CardContent>
@@ -103,19 +217,10 @@ export default function SecurityResult({ data }) {
         </Grid>
 
         <Grid item xs={12} md={3}>
-          <Card
-            sx={{
-              background: "#111827",
-              color: "#fff",
-              border: "1px solid #1f2937",
-            }}
-          >
+          <Card sx={{ background: "#111827", color: "#fff" }}>
             <CardContent>
-              <Typography sx={{ color: "#94a3b8" }}>
-                Findings
-              </Typography>
-
-              <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>
+              <Typography sx={{ color: "#94a3b8" }}>DLP Findings</Typography>
+              <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>
                 {findings.length}
               </Typography>
             </CardContent>
@@ -123,17 +228,116 @@ export default function SecurityResult({ data }) {
         </Grid>
       </Grid>
 
-      <Card
-        sx={{
-          mt: 3,
-          background: "#111827",
-          color: "#fff",
-          border: "1px solid #1f2937",
-        }}
-      >
+      {findings.length > 0 && (
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Advanced DLP Detection
+            </Typography>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
+              {Object.keys(groupedFindings).map((category) => {
+                const categoryInfo = getCategory(groupedFindings[category][0]?.type);
+
+                return (
+                  <Chip
+                    key={category}
+                    icon={categoryInfo.icon}
+                    label={`${category} (${groupedFindings[category].length})`}
+                    color={categoryInfo.color}
+                    variant="outlined"
+                    sx={{ fontWeight: 700 }}
+                  />
+                );
+              })}
+            </Stack>
+
+            {Object.entries(groupedFindings).map(([category, items]) => {
+              const categoryInfo = getCategory(items[0]?.type);
+
+              return (
+                <Box key={category} sx={{ mb: 3 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    {categoryInfo.icon}
+                    <Typography sx={{ fontWeight: 800 }}>{category}</Typography>
+                  </Stack>
+
+                  <Grid container spacing={1.5}>
+                    {items.map((finding, index) => (
+                      <Grid item xs={12} md={6} key={`${finding.type}-${index}`}>
+                        <Alert
+                          severity={getRiskColor(finding.severity)}
+                          sx={{
+                            background: "#020617",
+                            color: "#e2e8f0",
+                            border: "1px solid #1f2937",
+                          }}
+                        >
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip
+                                size="small"
+                                label={finding.type}
+                                color={getRiskColor(finding.severity)}
+                                sx={{ fontWeight: 800 }}
+                              />
+
+                              <Chip
+                                size="small"
+                                label={finding.severity}
+                                variant="outlined"
+                                color={getRiskColor(finding.severity)}
+                              />
+
+                              {finding.encrypted && (
+                                <Chip
+                                  size="small"
+                                  label="AES encrypted"
+                                  variant="outlined"
+                                  color="success"
+                                />
+                              )}
+                            </Stack>
+
+                            <Typography sx={{ fontSize: 14 }}>
+                              Token generated: <strong>{finding.token}</strong>
+                            </Typography>
+
+                            <Typography sx={{ color: "#94a3b8", fontSize: 13 }}>
+                              Original length: {finding.originalLength || 0} characters
+                            </Typography>
+
+                            {finding.frameworks?.length > 0 && (
+                              <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+                                {finding.frameworks.map((fw) => (
+                                  <Chip
+                                    key={fw}
+                                    size="small"
+                                    label={fw}
+                                    sx={{
+                                      background: "rgba(56,189,248,0.12)",
+                                      color: "#bae6fd",
+                                    }}
+                                  />
+                                ))}
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Alert>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Protected Prompt
+            Protected Content
           </Typography>
 
           <Box
@@ -152,128 +356,99 @@ export default function SecurityResult({ data }) {
                 whiteSpace: "pre-wrap",
               }}
             >
-              {data.protectedPrompt ||
-                data.protectedText ||
-                "No protected content"}
+              {data.protectedPrompt || data.protectedText || "No protected content"}
             </Typography>
           </Box>
         </CardContent>
       </Card>
 
-      {findings.length > 0 && (
-        <Card
-          sx={{
-            mt: 3,
-            background: "#111827",
-            color: "#fff",
-            border: "1px solid #1f2937",
-          }}
-        >
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Sensitive Data Detected
-            </Typography>
-
-            {findings.map((finding, index) => (
-              <Alert
-                key={index}
-                severity={getRiskColor(finding.severity)}
-                sx={{ mb: 2 }}
-              >
-                <strong>{finding.type}</strong> detected → token{" "}
-                <strong>{finding.token}</strong>
-              </Alert>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       {data.injection && (
-        <Card
-          sx={{
-            mt: 3,
-            background: "#111827",
-            color: "#fff",
-            border: "1px solid #1f2937",
-          }}
-        >
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Prompt Injection Analysis
+              AI Prompt Firewall
             </Typography>
 
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Detected
-                </Typography>
-
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Detected</Typography>
                 <Typography variant="h6">
                   {data.injection.detected ? "YES" : "NO"}
                 </Typography>
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Risk Level
-                </Typography>
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Decision</Typography>
+                <Typography variant="h6">{data.injection.decision || "ALLOW"}</Typography>
+              </Grid>
 
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Risk Level</Typography>
                 <Chip
-                  label={data.injection.riskLevel}
+                  label={data.injection.riskLevel || "LOW"}
                   color={getRiskColor(data.injection.riskLevel)}
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Score
-                </Typography>
-
-                <Typography variant="h6">
-                  {data.injection.score}
-                </Typography>
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Score</Typography>
+                <Typography variant="h6">{data.injection.score || 0}</Typography>
               </Grid>
             </Grid>
+
+            {data.injection.hits?.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                {data.injection.hits.map((hit, index) => (
+                  <Chip
+                    key={index}
+                    label={hit}
+                    color="error"
+                    variant="outlined"
+                    sx={{ mr: 1, mb: 1 }}
+                  />
+                ))}
+              </Box>
+            )}
           </CardContent>
         </Card>
       )}
 
       {data.response && (
-        <Card
-          sx={{
-            mt: 3,
-            background: "#111827",
-            color: "#fff",
-            border: "1px solid #1f2937",
-          }}
-        >
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
           <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              AI Response
-            </Typography>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+              <Bot size={22} color="#38bdf8" />
+              <Typography variant="h6">AI Response Security</Typography>
+            </Stack>
 
             <Divider sx={{ borderColor: "#1f2937", mb: 2 }} />
 
-            <Typography sx={{ color: "#94a3b8", mb: 1 }}>
-              Provider
-            </Typography>
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>Provider</Typography>
+                <Typography sx={{ fontWeight: 700 }}>
+                  {data.response.provider || "unknown"}
+                </Typography>
+              </Grid>
 
-            <Typography sx={{ mb: 2 }}>
-              {data.response.provider || "unknown"}
-            </Typography>
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>Routing Decision</Typography>
+                <Typography sx={{ fontWeight: 700 }}>
+                  {data.response.routingDecision || "unknown"}
+                </Typography>
+              </Grid>
 
-            <Typography sx={{ color: "#94a3b8", mb: 1 }}>
-              Routing Decision
-            </Typography>
-
-            <Typography sx={{ mb: 2 }}>
-              {data.response.routingDecision || "unknown"}
-            </Typography>
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>Response Risk</Typography>
+                <Chip
+                  label={responseSecurity.riskLevel || "UNKNOWN"}
+                  color={getRiskColor(responseSecurity.riskLevel)}
+                />
+              </Grid>
+            </Grid>
 
             {data.response.error ? (
-              <Alert severity="error">
-                {data.response.message}
-              </Alert>
+              <Alert severity="error">{data.response.message}</Alert>
             ) : (
               <Box
                 sx={{
@@ -283,55 +458,47 @@ export default function SecurityResult({ data }) {
                   border: "1px solid #1e293b",
                 }}
               >
-                <Typography
-                  sx={{
-                    whiteSpace: "pre-wrap",
-                    color: "#cbd5e1",
-                  }}
-                >
+                <Typography sx={{ whiteSpace: "pre-wrap", color: "#cbd5e1" }}>
                   {data.response.answer || "No response"}
                 </Typography>
               </Box>
             )}
+          </CardContent>
+        </Card>
+      )}
 
-            <Divider sx={{ borderColor: "#1f2937", my: 3 }} />
-
+      {frameworks.length > 0 && (
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
+          <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Response Security
+              Compliance Mapping
             </Typography>
 
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Decision
-                </Typography>
-
-                <Typography>
-                  {responseSecurity.decision || "UNKNOWN"}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Risk Level
-                </Typography>
-
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {frameworks.map((fw) => (
                 <Chip
-                  label={responseSecurity.riskLevel || "UNKNOWN"}
-                  color={getRiskColor(responseSecurity.riskLevel)}
+                  key={fw}
+                  label={fw}
+                  sx={{
+                    background: "rgba(34,197,94,0.15)",
+                    color: "#bbf7d0",
+                    border: "1px solid rgba(34,197,94,0.35)",
+                    fontWeight: 700,
+                  }}
                 />
-              </Grid>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
-              <Grid item xs={12} md={4}>
-                <Typography sx={{ color: "#94a3b8" }}>
-                  Risk Score
-                </Typography>
-
-                <Typography>
-                  {responseSecurity.riskScore || 0}
-                </Typography>
-              </Grid>
-            </Grid>
+      {findings.length === 0 && (
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
+          <CardContent>
+            <Alert severity="success">
+              No sensitive data detected. The prompt can be processed according
+              to the current policy.
+            </Alert>
           </CardContent>
         </Card>
       )}
