@@ -15,11 +15,11 @@ import {
   Bot,
   CheckCircle,
   Database,
-  FileWarning,
   KeyRound,
   Landmark,
   Network,
   ShieldAlert,
+  ShieldX,
   UserRound,
 } from "lucide-react";
 
@@ -83,14 +83,7 @@ function getCategory(type = "") {
   }
 
   if (
-    [
-      "IBAN",
-      "CREDIT_CARD",
-      "VAT",
-      "SALARY",
-      "REVENUE",
-      "MARGIN",
-    ].includes(t)
+    ["IBAN", "CREDIT_CARD", "VAT", "SALARY", "REVENUE", "MARGIN"].includes(t)
   ) {
     return {
       label: "Financial Data",
@@ -99,14 +92,7 @@ function getCategory(type = "") {
     };
   }
 
-  if (
-    [
-      "PRIVATE_IP",
-      "PUBLIC_IP",
-      "HOSTNAME",
-      "INTERNAL_URL",
-    ].includes(t)
-  ) {
+  if (["PRIVATE_IP", "PUBLIC_IP", "HOSTNAME", "INTERNAL_URL"].includes(t)) {
     return {
       label: "Infrastructure",
       color: "secondary",
@@ -114,13 +100,7 @@ function getCategory(type = "") {
     };
   }
 
-  if (
-    [
-      "CONTRACT_NUMBER",
-      "CUSTOMER_NAME",
-      "SUPPLIER_NAME",
-    ].includes(t)
-  ) {
+  if (["CONTRACT_NUMBER", "CUSTOMER_NAME", "SUPPLIER_NAME"].includes(t)) {
     return {
       label: "Business Sensitive",
       color: "warning",
@@ -163,6 +143,13 @@ function getDecisionIcon(decision = "") {
   return <CheckCircle size={22} color="#22c55e" />;
 }
 
+function getInjectionTypeLabel(type = "") {
+  return String(type || "")
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function SecurityResult({ data }) {
   if (!data) {
     return null;
@@ -172,6 +159,7 @@ export default function SecurityResult({ data }) {
   const groupedFindings = groupFindings(findings);
   const responseSecurity = data.response?.responseSecurity || {};
   const frameworks = data.stats?.frameworks || data.frameworks || [];
+  const injectionHits = data.injection?.hits || [];
 
   return (
     <Box sx={{ mt: 3 }}>
@@ -183,7 +171,9 @@ export default function SecurityResult({ data }) {
                 {getDecisionIcon(data.decision || "")}
                 <Box>
                   <Typography sx={{ color: "#94a3b8" }}>Decision</Typography>
-                  <Typography variant="h6">{data.decision || "UNKNOWN"}</Typography>
+                  <Typography variant="h6">
+                    {data.decision || "UNKNOWN"}
+                  </Typography>
                 </Box>
               </Stack>
             </CardContent>
@@ -227,6 +217,114 @@ export default function SecurityResult({ data }) {
           </Card>
         </Grid>
       </Grid>
+
+      {data.injection && (
+        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
+          <CardContent>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+              <ShieldX size={24} color="#ef4444" />
+              <Box>
+                <Typography variant="h6">AI Prompt Firewall</Typography>
+                <Typography sx={{ color: "#94a3b8", fontSize: 14 }}>
+                  Jailbreak, prompt injection, data exfiltration and system prompt leak detection.
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Detected</Typography>
+                <Typography variant="h6">
+                  {data.injection.detected ? "YES" : "NO"}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Decision</Typography>
+                <Chip
+                  label={data.injection.decision || "ALLOW"}
+                  color={
+                    data.injection.decision === "BLOCK"
+                      ? "error"
+                      : data.injection.decision === "REVIEW"
+                      ? "warning"
+                      : "success"
+                  }
+                  sx={{ fontWeight: 800 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Risk Level</Typography>
+                <Chip
+                  label={data.injection.riskLevel || "LOW"}
+                  color={getRiskColor(data.injection.riskLevel)}
+                  sx={{ fontWeight: 800 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <Typography sx={{ color: "#94a3b8" }}>Score</Typography>
+                <Typography variant="h6">{data.injection.score || 0}</Typography>
+              </Grid>
+            </Grid>
+
+            {injectionHits.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Typography sx={{ mb: 1.5, fontWeight: 800 }}>
+                  Firewall Rules Triggered
+                </Typography>
+
+                <Grid container spacing={1.5}>
+                  {injectionHits.map((hit, index) => (
+                    <Grid item xs={12} md={6} key={`${hit.id}-${index}`}>
+                      <Alert
+                        severity={getRiskColor(hit.severity)}
+                        sx={{
+                          background: "#020617",
+                          color: "#e2e8f0",
+                          border: "1px solid #1f2937",
+                        }}
+                      >
+                        <Stack spacing={1}>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Chip
+                              size="small"
+                              label={hit.id}
+                              color={getRiskColor(hit.severity)}
+                              sx={{ fontWeight: 800 }}
+                            />
+                            <Chip
+                              size="small"
+                              label={getInjectionTypeLabel(hit.type)}
+                              variant="outlined"
+                              color={getRiskColor(hit.severity)}
+                            />
+                            <Chip
+                              size="small"
+                              label={hit.severity}
+                              variant="outlined"
+                              color={getRiskColor(hit.severity)}
+                            />
+                          </Stack>
+
+                          <Typography sx={{ fontSize: 14 }}>
+                            {hit.description}
+                          </Typography>
+
+                          <Typography sx={{ color: "#94a3b8", fontSize: 13 }}>
+                            Rule score: {hit.score}
+                          </Typography>
+                        </Stack>
+                      </Alert>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {findings.length > 0 && (
         <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
@@ -362,57 +460,6 @@ export default function SecurityResult({ data }) {
         </CardContent>
       </Card>
 
-      {data.injection && (
-        <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
-          <CardContent>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              AI Prompt Firewall
-            </Typography>
-
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
-                <Typography sx={{ color: "#94a3b8" }}>Detected</Typography>
-                <Typography variant="h6">
-                  {data.injection.detected ? "YES" : "NO"}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Typography sx={{ color: "#94a3b8" }}>Decision</Typography>
-                <Typography variant="h6">{data.injection.decision || "ALLOW"}</Typography>
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Typography sx={{ color: "#94a3b8" }}>Risk Level</Typography>
-                <Chip
-                  label={data.injection.riskLevel || "LOW"}
-                  color={getRiskColor(data.injection.riskLevel)}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={3}>
-                <Typography sx={{ color: "#94a3b8" }}>Score</Typography>
-                <Typography variant="h6">{data.injection.score || 0}</Typography>
-              </Grid>
-            </Grid>
-
-            {data.injection.hits?.length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                {data.injection.hits.map((hit, index) => (
-                  <Chip
-                    key={index}
-                    label={hit}
-                    color="error"
-                    variant="outlined"
-                    sx={{ mr: 1, mb: 1 }}
-                  />
-                ))}
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {data.response && (
         <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
           <CardContent>
@@ -492,12 +539,12 @@ export default function SecurityResult({ data }) {
         </Card>
       )}
 
-      {findings.length === 0 && (
+      {findings.length === 0 && !data.injection?.detected && (
         <Card sx={{ mt: 3, background: "#111827", color: "#fff" }}>
           <CardContent>
             <Alert severity="success">
-              No sensitive data detected. The prompt can be processed according
-              to the current policy.
+              No sensitive data or prompt injection detected. The request can be
+              processed according to the current policy.
             </Alert>
           </CardContent>
         </Card>
