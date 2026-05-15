@@ -8,45 +8,18 @@ import {
   Divider,
 } from "@mui/material";
 
-import {
-  LayoutDashboard,
-  ShieldCheck,
-  FileSearch,
-  Activity,
-  Settings,
-  ScrollText,
-} from "lucide-react";
+import { ShieldCheck, LayoutDashboard } from "lucide-react";
 
 const menuItems = [
   {
-    id: "dashboard",
-    label: "Dashboard",
-    icon: <LayoutDashboard size={20} />,
-  },
-  {
-    id: "playground",
-    label: "AI Playground",
+    id: "security",
+    label: "AI Security Console",
     icon: <ShieldCheck size={20} />,
   },
   {
-    id: "files",
-    label: "File Protection",
-    icon: <FileSearch size={20} />,
-  },
-  {
-    id: "audit",
-    label: "Audit Logs",
-    icon: <ScrollText size={20} />,
-  },
-  {
-    id: "policies",
-    label: "Policies",
-    icon: <Activity size={20} />,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: <Settings size={20} />,
+    id: "dashboard",
+    label: "SOC / GRC Dashboard",
+    icon: <LayoutDashboard size={20} />,
   },
 ];
 
@@ -66,6 +39,7 @@ export default function Sidebar({ activePage, setActivePage }) {
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           AI Secure Gateway
         </Typography>
+
         <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
           CIDNS Security Platform
         </Typography>
