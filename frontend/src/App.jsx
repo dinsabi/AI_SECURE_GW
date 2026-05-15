@@ -2,12 +2,9 @@ import { useState } from "react";
 
 import MainLayout from "./layout/MainLayout.jsx";
 
+import LoginPage from "./pages/LoginPage.jsx";
+import SecurityConsolePage from "./pages/SecurityConsolePage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
-import PlaygroundPage from "./pages/PlaygroundPage.jsx";
-import FileProtectionPage from "./pages/FileProtectionPage.jsx";
-import AuditPage from "./pages/AuditPage.jsx";
-import PoliciesPage from "./pages/PoliciesPage.jsx";
-import SettingsPage from "./pages/SettingsPage.jsx";
 
 function getApiBase() {
   const origin = window.location.origin;
@@ -26,7 +23,7 @@ function getApiBase() {
 const API_BASE = getApiBase();
 
 export default function App() {
-  const [activePage, setActivePage] = useState("dashboard");
+  const [activePage, setActivePage] = useState("security");
 
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin");
@@ -89,11 +86,8 @@ export default function App() {
 
       setToken(data.access_token);
       setStatus("Login OK ✅");
-      setResult({
-        ok: true,
-        message: "Login OK",
-        api: API_BASE,
-      });
+      setResult(null);
+      setActivePage("security");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setStatus("Erreur connexion API");
@@ -104,6 +98,14 @@ export default function App() {
         api: API_BASE,
       });
     }
+  };
+
+  const handleLogout = () => {
+    setToken("");
+    setResult(null);
+    setDashboard(null);
+    setStatus("Déconnecté");
+    setActivePage("security");
   };
 
   const handleAnalyzePrompt = async () => {
@@ -220,7 +222,6 @@ export default function App() {
 
       setDashboard(data);
       setStatus("Dashboard SOC / GRC chargé ✅");
-      setResult(data);
     } catch (err) {
       console.error("DASHBOARD ERROR:", err);
       setStatus("Erreur dashboard SOC");
@@ -234,7 +235,38 @@ export default function App() {
     }
   };
 
+  if (!token) {
+    return (
+      <LoginPage
+        username={username}
+        setUsername={setUsername}
+        password={password}
+        setPassword={setPassword}
+        status={status}
+        result={result}
+        onLogin={handleLogin}
+      />
+    );
+  }
+
   function renderPage() {
+    if (activePage === "security") {
+      return (
+        <SecurityConsolePage
+          modelType={modelType}
+          setModelType={setModelType}
+          prompt={prompt}
+          setPrompt={setPrompt}
+          file={file}
+          setFile={setFile}
+          result={result}
+          status={status}
+          onAnalyzePrompt={handleAnalyzePrompt}
+          onAnalyzeFile={handleAnalyzeFile}
+        />
+      );
+    }
+
     if (activePage === "dashboard") {
       return (
         <DashboardPage
@@ -244,65 +276,29 @@ export default function App() {
       );
     }
 
-    if (activePage === "playground") {
-      return (
-        <PlaygroundPage
-          username={username}
-          setUsername={setUsername}
-          password={password}
-          setPassword={setPassword}
-          modelType={modelType}
-          setModelType={setModelType}
-          prompt={prompt}
-          setPrompt={setPrompt}
-          status={status}
-          result={result}
-          onLogin={handleLogin}
-          onAnalyzePrompt={handleAnalyzePrompt}
-        />
-      );
-    }
-
-    if (activePage === "files") {
-      return (
-        <FileProtectionPage
-          file={file}
-          setFile={setFile}
-          modelType={modelType}
-          setModelType={setModelType}
-          result={result}
-          onAnalyzeFile={handleAnalyzeFile}
-        />
-      );
-    }
-
-    if (activePage === "audit") {
-      return (
-        <AuditPage
-          dashboard={dashboard}
-          onLoadDashboard={handleLoadDashboard}
-        />
-      );
-    }
-
-    if (activePage === "policies") {
-      return <PoliciesPage />;
-    }
-
-    if (activePage === "settings") {
-      return <SettingsPage />;
-    }
-
     return (
-      <DashboardPage
-        dashboard={dashboard}
-        onLoadDashboard={handleLoadDashboard}
+      <SecurityConsolePage
+        modelType={modelType}
+        setModelType={setModelType}
+        prompt={prompt}
+        setPrompt={setPrompt}
+        file={file}
+        setFile={setFile}
+        result={result}
+        status={status}
+        onAnalyzePrompt={handleAnalyzePrompt}
+        onAnalyzeFile={handleAnalyzeFile}
       />
     );
   }
 
   return (
-    <MainLayout activePage={activePage} setActivePage={setActivePage}>
+    <MainLayout
+      activePage={activePage}
+      setActivePage={setActivePage}
+      username={username}
+      onLogout={handleLogout}
+    >
       {renderPage()}
     </MainLayout>
   );
