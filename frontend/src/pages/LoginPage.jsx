@@ -1,386 +1,235 @@
-import { useState } from "react";
-import { Alert, Snackbar } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CircularProgress,
+  Container,
+  TextField,
+  Typography,
+  Avatar,
+} from "@mui/material";
 
-import MainLayout from "./layout/MainLayout.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
-import SecurityConsolePage from "./pages/SecurityConsolePage.jsx";
-import DashboardPage from "./pages/DashboardPage.jsx";
+import logo from "../assets/cidns-logo.jpeg";
 
-function getApiBase() {
-  const origin = window.location.origin;
-
-  if (origin.includes("-5173.app.github.dev")) {
-    return origin.replace("-5173.app.github.dev", "-8080.app.github.dev");
-  }
-
-  if (origin.includes(":5173")) {
-    return origin.replace(":5173", ":8080");
-  }
-
-  return "http://localhost:8080";
-}
-
-const API_BASE = getApiBase();
-
-export default function App() {
-  const [activePage, setActivePage] = useState("security");
-
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin");
-  const [token, setToken] = useState("");
-
-  const [modelType, setModelType] = useState("mock");
-
-  const [prompt, setPrompt] = useState(
-    "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225"
-  );
-
-  const [file, setFile] = useState(null);
-  const [result, setResult] = useState(null);
-  const [status, setStatus] = useState("Ready");
-  const [dashboard, setDashboard] = useState(null);
-
-  const [loading, setLoading] = useState(false);
-
-  const [notification, setNotification] = useState({
-    open: false,
-    type: "info",
-    message: "",
-  });
-
-  const notify = (type, message) => {
-    setNotification({
-      open: true,
-      type,
-      message,
-    });
+export default function LoginPage({
+  username,
+  setUsername,
+  password,
+  setPassword,
+  status,
+  loading,
+  onLogin,
+}) {
+  const fieldStyle = {
+    mb: 3,
+    "& .MuiOutlinedInput-root": {
+      color: "#ffffff",
+      background: "#0f172a",
+      "& fieldset": {
+        borderColor: "#334155",
+      },
+      "&:hover fieldset": {
+        borderColor: "#38bdf8",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#38bdf8",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: "#cbd5e1",
+    },
+    "& .MuiInputLabel-root.Mui-focused": {
+      color: "#38bdf8",
+    },
   };
-
-  const closeNotification = () => {
-    setNotification((prev) => ({
-      ...prev,
-      open: false,
-    }));
-  };
-
-  const parseResponse = async (res) => {
-    const text = await res.text();
-
-    try {
-      return text ? JSON.parse(text) : {};
-    } catch {
-      return { raw: text };
-    }
-  };
-
-  const getAuthHeaders = () => ({
-    Authorization: `Bearer ${token}`,
-    "X-User-Email": username,
-    "X-User-Department": "Finance",
-    "X-User-Roles": "admin,finance_manager",
-    "X-User-Country": "BE",
-    "X-MFA-Verified": "true",
-  });
-
-  const handleLogin = async () => {
-    setLoading(true);
-    setStatus("Connexion à Keycloak...");
-    setResult(null);
-
-    try {
-      const res = await fetch(`${API_BASE}/login/keycloak`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        mode: "cors",
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      });
-
-      const data = await parseResponse(res);
-
-      if (!res.ok) {
-        setStatus("Login failed");
-        setResult(data);
-        notify("error", "Login failed. Vérifie Keycloak ou les credentials.");
-        return;
-      }
-
-      setToken(data.access_token);
-      setStatus("Login OK ✅");
-      setResult(null);
-      setActivePage("security");
-      notify("success", "Connexion réussie avec Keycloak.");
-    } catch (err) {
-      console.error("LOGIN ERROR:", err);
-      setStatus("Erreur connexion API");
-      setResult({
-        ok: false,
-        error: "Erreur connexion API",
-        message: err.message,
-        api: API_BASE,
-      });
-      notify("error", `Erreur connexion API : ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    setToken("");
-    setResult(null);
-    setDashboard(null);
-    setStatus("Déconnecté");
-    setActivePage("security");
-    notify("info", "Déconnexion effectuée.");
-  };
-
-  const handleAnalyzePrompt = async () => {
-    if (!token) {
-      notify("warning", "Login first !");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Analyse du prompt en cours...");
-    setResult(null);
-
-    try {
-      const res = await fetch(`${API_BASE}/v1/gateway/process`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        mode: "cors",
-        body: JSON.stringify({
-          prompt,
-          modelType,
-          frameworks: ["NIS2", "GDPR", "ISO27001"],
-        }),
-      });
-
-      const data = await parseResponse(res);
-
-      setStatus(res.ok ? "Analyse prompt OK ✅" : "Analyse prompt failed");
-      setResult(data);
-
-      if (res.ok) {
-        notify("success", "Prompt analysé et protégé avec succès.");
-      } else {
-        notify("warning", "Le prompt a été bloqué ou nécessite une revue.");
-      }
-    } catch (err) {
-      console.error("PROMPT ANALYZE ERROR:", err);
-      setStatus("Erreur analyse prompt");
-      setResult({
-        ok: false,
-        error: "Erreur analyse prompt",
-        message: err.message,
-        api: API_BASE,
-      });
-      notify("error", `Erreur analyse prompt : ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAnalyzeFile = async () => {
-    if (!token) {
-      notify("warning", "Login first !");
-      return;
-    }
-
-    if (!file) {
-      notify("warning", "Sélectionne d’abord un fichier.");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Analyse du fichier uploadé en cours...");
-    setResult(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("modelType", modelType);
-      formData.append("frameworks", "NIS2,GDPR,ISO27001");
-
-      const res = await fetch(`${API_BASE}/v1/files/analyze`, {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-        },
-        mode: "cors",
-        body: formData,
-      });
-
-      const data = await parseResponse(res);
-
-      setStatus(res.ok ? "Analyse fichier OK ✅" : "Analyse fichier failed");
-      setResult(data);
-
-      if (res.ok) {
-        notify("success", "Fichier analysé et protégé avec succès.");
-      } else {
-        notify("warning", "Le fichier a été bloqué ou nécessite une revue.");
-      }
-    } catch (err) {
-      console.error("FILE ANALYZE ERROR:", err);
-      setStatus("Erreur analyse fichier");
-      setResult({
-        ok: false,
-        error: "Erreur analyse fichier",
-        message: err.message,
-        api: API_BASE,
-      });
-      notify("error", `Erreur analyse fichier : ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoadDashboard = async () => {
-    if (!token) {
-      notify("warning", "Login first !");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Chargement du dashboard SOC / GRC...");
-    setResult(null);
-
-    try {
-      const res = await fetch(`${API_BASE}/v1/dashboard/risk-summary`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        mode: "cors",
-      });
-
-      const data = await parseResponse(res);
-
-      if (!res.ok) {
-        setStatus("Erreur dashboard SOC");
-        setDashboard(null);
-        setResult(data);
-        notify("error", "Erreur lors du chargement du dashboard.");
-        return;
-      }
-
-      setDashboard(data);
-      setStatus("Dashboard SOC / GRC chargé ✅");
-      notify("success", "Dashboard SOC / GRC chargé.");
-    } catch (err) {
-      console.error("DASHBOARD ERROR:", err);
-      setStatus("Erreur dashboard SOC");
-      setDashboard(null);
-      setResult({
-        ok: false,
-        error: "Erreur dashboard SOC",
-        message: err.message,
-        api: API_BASE,
-      });
-      notify("error", `Erreur dashboard : ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!token) {
-    return (
-      <>
-        <LoginPage
-          username={username}
-          setUsername={setUsername}
-          password={password}
-          setPassword={setPassword}
-          status={status}
-          loading={loading}
-          onLogin={handleLogin}
-        />
-
-        <Snackbar
-          open={notification.open}
-          autoHideDuration={5000}
-          onClose={closeNotification}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        >
-          <Alert
-            onClose={closeNotification}
-            severity={notification.type}
-            variant="filled"
-            sx={{ width: "100%" }}
-          >
-            {notification.message}
-          </Alert>
-        </Snackbar>
-      </>
-    );
-  }
-
-  function renderPage() {
-    if (activePage === "security") {
-      return (
-        <SecurityConsolePage
-          modelType={modelType}
-          setModelType={setModelType}
-          prompt={prompt}
-          setPrompt={setPrompt}
-          file={file}
-          setFile={setFile}
-          result={result}
-          status={status}
-          loading={loading}
-          onAnalyzePrompt={handleAnalyzePrompt}
-          onAnalyzeFile={handleAnalyzeFile}
-        />
-      );
-    }
-
-    if (activePage === "dashboard") {
-      return (
-        <DashboardPage
-          dashboard={dashboard}
-          loading={loading}
-          onLoadDashboard={handleLoadDashboard}
-        />
-      );
-    }
-
-    return null;
-  }
 
   return (
-    <>
-      <MainLayout
-        activePage={activePage}
-        setActivePage={setActivePage}
-        username={username}
-        onLogout={handleLogout}
-      >
-        {renderPage()}
-      </MainLayout>
-
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={5000}
-        onClose={closeNotification}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      >
-        <Alert
-          onClose={closeNotification}
-          severity={notification.type}
-          variant="filled"
-          sx={{ width: "100%" }}
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(135deg, #020617 0%, #0f172a 45%, #111827 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card
+          sx={{
+            background: "rgba(15,23,42,0.96)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid #1e293b",
+            borderRadius: 5,
+            color: "#fff",
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          }}
         >
-          {notification.message}
-        </Alert>
-      </Snackbar>
-    </>
+          <CardContent sx={{ p: 5 }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                mb: 4,
+              }}
+            >
+              <Avatar
+                src={logo}
+                alt="CIDNS"
+                sx={{
+                  width: 150,
+                  height: 150,
+                  mb: 2,
+                  background: "#fff",
+                  border: "3px solid #38bdf8",
+                  boxShadow: "0 0 35px rgba(56,189,248,0.35)",
+                }}
+              />
+
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  mb: 1,
+                  textAlign: "center",
+                  letterSpacing: 0.3,
+                }}
+              >
+                AI Secure Gateway
+              </Typography>
+
+              <Typography
+                sx={{
+                  color: "#38bdf8",
+                  fontWeight: 700,
+                  textAlign: "center",
+                  fontSize: 16,
+                }}
+              >
+                CIDNS Enterprise AI Security Platform
+              </Typography>
+
+              <Typography
+                sx={{
+                  color: "#94a3b8",
+                  mt: 1,
+                  fontSize: 14,
+                  textAlign: "center",
+                }}
+              >
+                NIS2 • GDPR • ISO27001 • Zero Trust AI
+              </Typography>
+            </Box>
+
+            <TextField
+              fullWidth
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              variant="outlined"
+              placeholder="admin"
+              disabled={loading}
+              sx={fieldStyle}
+            />
+
+            <TextField
+              fullWidth
+              type="password"
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              variant="outlined"
+              placeholder="admin"
+              disabled={loading}
+              sx={fieldStyle}
+            />
+
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              onClick={onLogin}
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                fontWeight: 800,
+                background:
+                  "linear-gradient(90deg,#2563eb 0%, #38bdf8 100%)",
+                borderRadius: 3,
+                fontSize: 16,
+                textTransform: "none",
+                boxShadow: "0 10px 30px rgba(37,99,235,0.35)",
+                "&:hover": {
+                  background:
+                    "linear-gradient(90deg,#1d4ed8 0%, #0ea5e9 100%)",
+                },
+              }}
+            >
+              {loading ? (
+                <>
+                  <CircularProgress
+                    size={20}
+                    sx={{ color: "#fff", mr: 1 }}
+                  />
+                  Connecting...
+                </>
+              ) : (
+                "Login with Keycloak"
+              )}
+            </Button>
+
+            <Box
+              sx={{
+                mt: 3,
+                background: "#020617",
+                border: "1px solid #1e293b",
+                borderRadius: 3,
+                p: 2,
+              }}
+            >
+              <Typography
+                sx={{
+                  color: "#38bdf8",
+                  fontWeight: 800,
+                  mb: 1,
+                }}
+              >
+                Demo Credentials
+              </Typography>
+
+              <Typography sx={{ color: "#e2e8f0", fontSize: 15 }}>
+                Username: <strong>admin</strong>
+              </Typography>
+
+              <Typography sx={{ color: "#e2e8f0", fontSize: 15 }}>
+                Password: <strong>admin</strong>
+              </Typography>
+            </Box>
+
+            <Typography
+              sx={{
+                mt: 3,
+                textAlign: "center",
+                color: status?.toLowerCase().includes("failed")
+                  ? "#f87171"
+                  : status?.toLowerCase().includes("erreur")
+                  ? "#f87171"
+                  : status?.toLowerCase().includes("ok")
+                  ? "#22c55e"
+                  : "#94a3b8",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {status || "Ready"}
+            </Typography>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 }
