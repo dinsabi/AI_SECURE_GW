@@ -6,9 +6,10 @@ import {
   Container,
   TextField,
   Typography,
+  Avatar,
 } from "@mui/material";
 
-import ShieldIcon from "@mui/icons-material/Shield";
+import logo from "../assets/cidns-logo.jpeg";
 
 export default function LoginPage({
   username,
@@ -19,30 +20,47 @@ export default function LoginPage({
   onLogin,
 }) {
   return (
-    <Container maxWidth="sm">
-      <Box
-        sx={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(135deg, #020617 0%, #0f172a 40%, #111827 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 2,
+      }}
+    >
+      <Container maxWidth="sm">
         <Card
           sx={{
-            width: "100%",
-            background: "#111827",
+            background: "rgba(15,23,42,0.95)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid #1e293b",
+            borderRadius: 5,
             color: "#fff",
-            borderRadius: 4,
-            boxShadow: "0px 10px 40px rgba(0,0,0,0.4)",
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
           }}
         >
           <CardContent sx={{ p: 5 }}>
-            <Box sx={{ textAlign: "center", mb: 4 }}>
-              <ShieldIcon
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                mb: 4,
+              }}
+            >
+              <Avatar
+                src={logo}
+                alt="CIDNS"
                 sx={{
-                  fontSize: 70,
-                  color: "#38bdf8",
+                  width: 140,
+                  height: 140,
                   mb: 2,
+                  background: "#fff",
+                  border: "3px solid #38bdf8",
                 }}
               />
 
@@ -51,6 +69,7 @@ export default function LoginPage({
                 sx={{
                   fontWeight: 700,
                   mb: 1,
+                  textAlign: "center",
                 }}
               >
                 AI Secure Gateway
@@ -58,17 +77,20 @@ export default function LoginPage({
 
               <Typography
                 sx={{
-                  color: "#94a3b8",
+                  color: "#38bdf8",
+                  fontWeight: 600,
+                  textAlign: "center",
                 }}
               >
-                Enterprise AI Security Platform
+                CIDNS Enterprise AI Security Platform
               </Typography>
 
               <Typography
                 sx={{
-                  color: "#64748b",
+                  color: "#94a3b8",
                   mt: 1,
                   fontSize: 14,
+                  textAlign: "center",
                 }}
               >
                 NIS2 • GDPR • ISO27001 • Zero Trust AI
@@ -80,12 +102,12 @@ export default function LoginPage({
               label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              sx={{ mb: 3 }}
+              sx={{
+                mb: 3,
+                input: { color: "#fff" },
+              }}
               InputLabelProps={{
                 style: { color: "#94a3b8" },
-              }}
-              inputProps={{
-                style: { color: "#fff" },
               }}
             />
 
@@ -95,12 +117,12 @@ export default function LoginPage({
               label="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              sx={{ mb: 3 }}
+              sx={{
+                mb: 3,
+                input: { color: "#fff" },
+              }}
               InputLabelProps={{
                 style: { color: "#94a3b8" },
-              }}
-              inputProps={{
-                style: { color: "#fff" },
               }}
             />
 
@@ -112,11 +134,42 @@ export default function LoginPage({
               sx={{
                 py: 1.5,
                 fontWeight: 700,
-                background: "#2563eb",
+                background:
+                  "linear-gradient(90deg,#2563eb 0%, #38bdf8 100%)",
+                borderRadius: 3,
+                fontSize: 16,
               }}
             >
               Login with Keycloak
             </Button>
+
+            <Box
+              sx={{
+                mt: 3,
+                background: "#020617",
+                border: "1px solid #1e293b",
+                borderRadius: 3,
+                p: 2,
+              }}
+            >
+              <Typography
+                sx={{
+                  color: "#38bdf8",
+                  fontWeight: 700,
+                  mb: 1,
+                }}
+              >
+                Demo Credentials
+              </Typography>
+
+              <Typography sx={{ color: "#cbd5e1", fontSize: 14 }}>
+                User: <strong>admin</strong>
+              </Typography>
+
+              <Typography sx={{ color: "#cbd5e1", fontSize: 14 }}>
+                Password: <strong>admin</strong>
+              </Typography>
+            </Box>
 
             <Typography
               sx={{
@@ -130,7 +183,7 @@ export default function LoginPage({
             </Typography>
           </CardContent>
         </Card>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 }

@@ -1,3 +1,33 @@
+import {
+  Alert,
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Grid,
+  Typography,
+} from "@mui/material";
+
+function getRiskColor(level) {
+  switch (level) {
+    case "LOW":
+      return "success";
+
+    case "MEDIUM":
+      return "warning";
+
+    case "HIGH":
+      return "error";
+
+    case "CRITICAL":
+      return "secondary";
+
+    default:
+      return "default";
+  }
+}
+
 export default function SecurityResult({ data }) {
   if (!data) {
     return null;
@@ -5,214 +35,306 @@ export default function SecurityResult({ data }) {
 
   const findings = data.findings || [];
   const responseSecurity = data.response?.responseSecurity || {};
-  const injection = data.injection || {};
-
-  const getRiskColor = (level) => {
-    switch (level) {
-      case "LOW":
-        return "#00c853";
-
-      case "MEDIUM":
-        return "#ff9800";
-
-      case "HIGH":
-        return "#ff5252";
-
-      default:
-        return "#999";
-    }
-  };
 
   return (
-    <div
-      style={{
-        marginTop: 30,
-        background: "#161b22",
-        color: "#fff",
-        padding: 25,
-        borderRadius: 12,
-        border: "1px solid #30363d",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>AI Security Analysis</h2>
+    <Box sx={{ mt: 3 }}>
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={3}>
+          <Card
+            sx={{
+              background: "#111827",
+              color: "#fff",
+              border: "1px solid #1f2937",
+            }}
+          >
+            <CardContent>
+              <Typography sx={{ color: "#94a3b8" }}>
+                Decision
+              </Typography>
 
-      {/* Decision */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Decision:</strong>{" "}
-        <span
-          style={{
-            color: getRiskColor(data.riskLevel),
-            fontWeight: "bold",
+              <Typography variant="h6" sx={{ mt: 1 }}>
+                {data.decision || "UNKNOWN"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card
+            sx={{
+              background: "#111827",
+              color: "#fff",
+              border: "1px solid #1f2937",
+            }}
+          >
+            <CardContent>
+              <Typography sx={{ color: "#94a3b8" }}>
+                Risk Score
+              </Typography>
+
+              <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>
+                {data.riskScore || 0}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card
+            sx={{
+              background: "#111827",
+              color: "#fff",
+              border: "1px solid #1f2937",
+            }}
+          >
+            <CardContent>
+              <Typography sx={{ color: "#94a3b8" }}>
+                Risk Level
+              </Typography>
+
+              <Box sx={{ mt: 2 }}>
+                <Chip
+                  label={data.riskLevel || "UNKNOWN"}
+                  color={getRiskColor(data.riskLevel)}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={3}>
+          <Card
+            sx={{
+              background: "#111827",
+              color: "#fff",
+              border: "1px solid #1f2937",
+            }}
+          >
+            <CardContent>
+              <Typography sx={{ color: "#94a3b8" }}>
+                Findings
+              </Typography>
+
+              <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>
+                {findings.length}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Card
+        sx={{
+          mt: 3,
+          background: "#111827",
+          color: "#fff",
+          border: "1px solid #1f2937",
+        }}
+      >
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Protected Prompt
+          </Typography>
+
+          <Box
+            sx={{
+              background: "#020617",
+              borderRadius: 2,
+              p: 2,
+              border: "1px solid #1e293b",
+              overflowX: "auto",
+            }}
+          >
+            <Typography
+              sx={{
+                color: "#cbd5e1",
+                fontFamily: "monospace",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {data.protectedPrompt ||
+                data.protectedText ||
+                "No protected content"}
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {findings.length > 0 && (
+        <Card
+          sx={{
+            mt: 3,
+            background: "#111827",
+            color: "#fff",
+            border: "1px solid #1f2937",
           }}
         >
-          {data.decision}
-        </span>
-      </div>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Sensitive Data Detected
+            </Typography>
 
-      {/* Risk */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Risk Level:</strong>{" "}
-        <span
-          style={{
-            color: getRiskColor(data.riskLevel),
-            fontWeight: "bold",
-          }}
-        >
-          {data.riskLevel}
-        </span>
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <strong>Risk Score:</strong> {data.riskScore}
-      </div>
-
-      {/* Provider */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>LLM Provider:</strong>{" "}
-        {data.response?.provider || "unknown"}
-      </div>
-
-      {/* Routing */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Routing Decision:</strong>{" "}
-        {data.response?.routingDecision || "N/A"}
-      </div>
-
-      {/* Protected Prompt */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Protected Prompt:</strong>
-
-        <div
-          style={{
-            marginTop: 10,
-            padding: 15,
-            background: "#0d1117",
-            borderRadius: 8,
-            border: "1px solid #30363d",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {data.protectedPrompt ||
-            data.protectedText ||
-            "No protected content"}
-        </div>
-      </div>
-
-      {/* Findings */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Sensitive Data Findings:</strong>
-
-        {findings.length === 0 ? (
-          <p>No sensitive data detected.</p>
-        ) : (
-          <ul>
-            {findings.map((f, index) => (
-              <li key={index}>
-                <strong>{f.type}</strong> — Severity: {f.severity}
-              </li>
+            {findings.map((finding, index) => (
+              <Alert
+                key={index}
+                severity={getRiskColor(finding.severity)}
+                sx={{ mb: 2 }}
+              >
+                <strong>{finding.type}</strong> detected → token{" "}
+                <strong>{finding.token}</strong>
+              </Alert>
             ))}
-          </ul>
-        )}
-      </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Prompt Injection */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Prompt Injection Protection:</strong>
-
-        <div
-          style={{
-            marginTop: 10,
-            color: getRiskColor(injection.riskLevel),
-            fontWeight: "bold",
+      {data.injection && (
+        <Card
+          sx={{
+            mt: 3,
+            background: "#111827",
+            color: "#fff",
+            border: "1px solid #1f2937",
           }}
         >
-          {injection.decision}
-        </div>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Prompt Injection Analysis
+            </Typography>
 
-        {injection.hits?.length > 0 && (
-          <ul>
-            {injection.hits.map((hit, index) => (
-              <li key={index}>{hit}</li>
-            ))}
-          </ul>
-        )}
-      </div>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Detected
+                </Typography>
 
-      {/* AI Response */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>AI Response:</strong>
+                <Typography variant="h6">
+                  {data.injection.detected ? "YES" : "NO"}
+                </Typography>
+              </Grid>
 
-        <div
-          style={{
-            marginTop: 10,
-            padding: 15,
-            background: "#0d1117",
-            borderRadius: 8,
-            border: "1px solid #30363d",
-            whiteSpace: "pre-wrap",
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Risk Level
+                </Typography>
+
+                <Chip
+                  label={data.injection.riskLevel}
+                  color={getRiskColor(data.injection.riskLevel)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Score
+                </Typography>
+
+                <Typography variant="h6">
+                  {data.injection.score}
+                </Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+
+      {data.response && (
+        <Card
+          sx={{
+            mt: 3,
+            background: "#111827",
+            color: "#fff",
+            border: "1px solid #1f2937",
           }}
         >
-          {data.response?.answer ||
-            data.response?.message ||
-            "No AI response"}
-        </div>
-      </div>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              AI Response
+            </Typography>
 
-      {/* Response Security */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Response Security:</strong>
+            <Divider sx={{ borderColor: "#1f2937", mb: 2 }} />
 
-        <div
-          style={{
-            marginTop: 10,
-            color: getRiskColor(responseSecurity.riskLevel),
-          }}
-        >
-          {responseSecurity.decision}
-        </div>
-      </div>
+            <Typography sx={{ color: "#94a3b8", mb: 1 }}>
+              Provider
+            </Typography>
 
-      {/* Compliance */}
-      <div style={{ marginBottom: 20 }}>
-        <strong>Compliance:</strong>
+            <Typography sx={{ mb: 2 }}>
+              {data.response.provider || "unknown"}
+            </Typography>
 
-        <div style={{ marginTop: 10 }}>
-          ✅ NIS2 <br />
-          ✅ GDPR <br />
-          ✅ ISO27001
-        </div>
-      </div>
+            <Typography sx={{ color: "#94a3b8", mb: 1 }}>
+              Routing Decision
+            </Typography>
 
-      {/* Raw JSON */}
-      <details style={{ marginTop: 30 }}>
-        <summary style={{ cursor: "pointer" }}>
-          View technical JSON
-        </summary>
+            <Typography sx={{ mb: 2 }}>
+              {data.response.routingDecision || "unknown"}
+            </Typography>
 
-        <pre
-          style={{
-            marginTop: 15,
-            background: "#000",
-            color: "#0f0",
-            padding: 20,
-            borderRadius: 8,
-            overflow: "auto",
-            maxHeight: 500,
-          }}
-        >
-          {JSON.stringify(
-            {
-              ...data,
-              originalPrompt: undefined,
-              originalText: undefined,
-              originalAnswer: undefined,
-              tokenMap: undefined,
-            },
-            null,
-            2
-          )}
-        </pre>
-      </details>
-    </div>
+            {data.response.error ? (
+              <Alert severity="error">
+                {data.response.message}
+              </Alert>
+            ) : (
+              <Box
+                sx={{
+                  background: "#020617",
+                  borderRadius: 2,
+                  p: 2,
+                  border: "1px solid #1e293b",
+                }}
+              >
+                <Typography
+                  sx={{
+                    whiteSpace: "pre-wrap",
+                    color: "#cbd5e1",
+                  }}
+                >
+                  {data.response.answer || "No response"}
+                </Typography>
+              </Box>
+            )}
+
+            <Divider sx={{ borderColor: "#1f2937", my: 3 }} />
+
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Response Security
+            </Typography>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Decision
+                </Typography>
+
+                <Typography>
+                  {responseSecurity.decision || "UNKNOWN"}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Risk Level
+                </Typography>
+
+                <Chip
+                  label={responseSecurity.riskLevel || "UNKNOWN"}
+                  color={getRiskColor(responseSecurity.riskLevel)}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Typography sx={{ color: "#94a3b8" }}>
+                  Risk Score
+                </Typography>
+
+                <Typography>
+                  {responseSecurity.riskScore || 0}
+                </Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
+    </Box>
   );
 }
