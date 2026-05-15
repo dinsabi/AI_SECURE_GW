@@ -32,7 +32,7 @@ export default function App() {
   const [modelType, setModelType] = useState("mock");
 
   const [prompt, setPrompt] = useState(
-    "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225"
+    "Bonjour mon ami s'appelle Jean-Paul avec l'email jp.dupont@cidns.eu et son numero de compte est BE80 2666 4888 5225, Voici une clé AWS AKIAIOSFODNN7EXAMPLE, un JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature, un password=SuperSecret123 et un GitHub token ghp_1234567890abcdefghijklmnopqrstuvwxyzABCD"
   );
 
   const [file, setFile] = useState(null);
