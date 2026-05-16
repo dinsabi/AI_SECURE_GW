@@ -1,230 +1,211 @@
 export const DLP_PATTERNS = [
-  // =========================
-  // GDPR / PII
-  // =========================
   {
-    type: "EMAIL",
-    severity: "HIGH",
-    frameworks: ["GDPR", "NIS2", "ISO27001"],
-    regex: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
-  },
-  {
-    type: "PHONE",
+    type: "Nom complet",
     severity: "MEDIUM",
-    frameworks: ["GDPR"],
-    regex: /(?:\+32|0032|0)\s?[1-9](?:[\s.-]?\d{2}){3,4}/g,
+    frameworks: ["RGPD", "ISO27001"],
+    regex: /\b[A-ZÀ-Ÿ][a-zà-ÿ'-]{2,}\s+[A-ZÀ-Ÿ][a-zà-ÿ'-]{2,}\b/g,
   },
   {
-    type: "NATIONAL_ID_BE",
+    type: "Adresse email",
     severity: "HIGH",
-    frameworks: ["GDPR", "NIS2"],
+    frameworks: ["RGPD", "NIS2", "ISO27001"],
+    regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+  },
+  {
+    type: "Téléphone",
+    severity: "MEDIUM",
+    frameworks: ["RGPD"],
+    regex: /\b(?:\+32|0032|0)\s?[1-9](?:[\s.-]?\d{2}){3,4}\b/g,
+  },
+  {
+    type: "Adresse",
+    severity: "HIGH",
+    frameworks: ["RGPD"],
+    regex:
+      /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
+  },
+  {
+    type: "Date de naissance",
+    severity: "HIGH",
+    frameworks: ["RGPD"],
+    regex: /\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g,
+  },
+  {
+    type: "Registre national",
+    severity: "CRITICAL",
+    frameworks: ["RGPD", "NIS2"],
     regex: /\b\d{2}[.\s-]?\d{2}[.\s-]?\d{2}[.\s-]?\d{3}[.\s-]?\d{2}\b/g,
   },
   {
-    type: "DATE_OF_BIRTH",
+    type: "Passeport",
     severity: "HIGH",
-    frameworks: ["GDPR"],
-    regex:
-      /\b(?:né le|née le|date de naissance|dob|birth date)\s*[:\-]?\s*\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/gi,
+    frameworks: ["RGPD"],
+    regex: /\b(?:passport|passeport)?\s*[:\-]?\s*[A-Z]{1,2}[0-9A-Z]{6,12}\b/gi,
   },
-  {
-    type: "ADDRESS",
-    severity: "HIGH",
-    frameworks: ["GDPR"],
-    regex:
-      /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|square|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
-  },
-  {
-    type: "PASSPORT_NUMBER",
-    severity: "HIGH",
-    frameworks: ["GDPR", "NIS2"],
-    regex: /\b(?:passport|passeport)\s*[:\-]?\s*[A-Z0-9]{6,12}\b/gi,
-  },
-  {
-    type: "DRIVING_LICENSE",
-    severity: "HIGH",
-    frameworks: ["GDPR"],
-    regex:
-      /\b(?:permis|driving licence|driver license)\s*[:\-]?\s*[A-Z0-9\-]{6,15}\b/gi,
-  },
-  {
-    type: "LICENSE_PLATE",
-    severity: "MEDIUM",
-    frameworks: ["GDPR"],
-    regex: /\b(?:[A-Z]{1,3}[-\s]?\d{3}[-\s]?[A-Z]{0,3}|\d[-\s]?[A-Z]{3}[-\s]?\d{3})\b/g,
-  },
-
-  // =========================
-  // Financial
-  // =========================
   {
     type: "IBAN",
-    severity: "HIGH",
-    frameworks: ["GDPR", "NIS2", "ISO27001"],
+    severity: "CRITICAL",
+    frameworks: ["RGPD", "NIS2", "ISO27001"],
     regex: /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b/g,
   },
   {
-    type: "CREDIT_CARD",
+    type: "Carte bancaire",
     severity: "CRITICAL",
-    frameworks: ["PCI-DSS", "GDPR", "ISO27001"],
+    frameworks: ["RGPD", "ISO27001"],
     regex: /\b(?:\d[ -]*?){13,19}\b/g,
   },
   {
-    type: "VAT",
+    type: "CVV",
+    severity: "CRITICAL",
+    frameworks: ["RGPD", "ISO27001"],
+    regex: /\b(?:CVV|CVC)\s*[:=]?\s*\d{3,4}\b/gi,
+  },
+  {
+    type: "SWIFT/BIC",
+    severity: "HIGH",
+    frameworks: ["RGPD", "ISO27001"],
+    regex: /\b[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/g,
+  },
+  {
+    type: "Facture",
     severity: "MEDIUM",
-    frameworks: ["GDPR", "ISO27001"],
-    regex: /\b(?:BE|FR|NL|DE|LU)\s?\d{9,12}\b/gi,
+    frameworks: ["ISO27001"],
+    regex: /\b(?:FACT|INV|INVOICE|FACTURE)[-_]?\d{4,}\b/gi,
   },
   {
-    type: "SALARY",
+    type: "Salaire",
     severity: "HIGH",
-    frameworks: ["GDPR", "ISO27001"],
+    frameworks: ["RGPD", "ISO27001"],
     regex:
-      /\b(?:salaire|salary|rémunération|remuneration)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
-  },
-  {
-    type: "REVENUE",
-    severity: "HIGH",
-    frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:chiffre d'affaires|revenu|revenue|turnover)\s*[:\-]?\s*\d{3,12}(?:[,.]\d{2})?\s*(?:€|EUR|euros|k€|m€)?\b/gi,
-  },
-  {
-    type: "MARGIN",
-    severity: "HIGH",
-    frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:marge|margin)\s*[:\-]?\s*\d{1,3}(?:[,.]\d{1,2})?\s*%?\b/gi,
+      /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
   },
 
-  // =========================
-  // Secrets / Credentials
-  // =========================
   {
-    type: "OPENAI_API_KEY",
+    type: "API Key",
     severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g,
-  },
-  {
-    type: "API_KEY",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
+    frameworks: ["NIS2", "ISO27001"],
     regex:
       /\b(?:api[_-]?key|apikey|secret[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_\-./=]{12,}["']?/gi,
   },
   {
-    type: "JWT_TOKEN",
+    type: "AWS Secret",
     severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
+  },
+  {
+    type: "JWT Token",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
     regex: /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
   },
   {
-    type: "BEARER_TOKEN",
+    type: "Password",
     severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex: /\bBearer\s+[A-Za-z0-9._\-+/=]{20,}\b/g,
-  },
-  {
-    type: "PASSWORD",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
+    frameworks: ["NIS2", "ISO27001"],
     regex:
       /\b(?:password|passwd|pwd|motdepasse|mot_de_passe|secret)\s*[:=]\s*["']?[^\s,;"]+["']?/gi,
   },
   {
-    type: "PRIVATE_KEY",
+    type: "SSH Key",
     severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
+    frameworks: ["NIS2", "ISO27001"],
     regex:
       /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
   },
   {
-    type: "AWS_ACCESS_KEY",
+    type: "Kubernetes Secret",
     severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
-  },
-  {
-    type: "AWS_SECRET_KEY",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex:
-      /\b(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY)\s*[:=]\s*["']?[A-Za-z0-9/+=]{40}["']?/g,
-  },
-  {
-    type: "GITHUB_TOKEN",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{30,}\b/g,
-  },
-  {
-    type: "AZURE_SECRET",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex:
-      /\b(?:AZURE_CLIENT_SECRET|azure_client_secret|client_secret)\s*[:=]\s*["']?[A-Za-z0-9_\-~.]{20,}["']?/g,
-  },
-  {
-    type: "CONNECTION_STRING",
-    severity: "CRITICAL",
-    frameworks: ["ISO27001", "NIS2"],
-    regex: /\b(?:mongodb|postgres|postgresql|mysql|redis):\/\/[^\s]+/gi,
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:k8s|kubernetes)[-_ ]?(?:secret|token)[-_ ]?[A-Za-z0-9_-]{6,}\b/gi,
   },
 
-  // =========================
-  // Infrastructure / Technical
-  // =========================
   {
-    type: "PRIVATE_IP",
+    type: "Firewall",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})\b/g,
+    regex: /\b(?:firewall|palo alto|fortigate|checkpoint|cisco asa|allow_internal|deny_all)\b/gi,
   },
   {
-    type: "PUBLIC_IP",
-    severity: "MEDIUM",
-    frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?!(?:10|127|169\.254|192\.168)\.)(?!(?:172\.(?:1[6-9]|2\d|3[0-1]))\.)(?:\d{1,3}\.){3}\d{1,3}\b/g,
-  },
-  {
-    type: "HOSTNAME",
-    severity: "MEDIUM",
-    frameworks: ["NIS2", "ISO27001"],
-    regex: /\b[a-zA-Z0-9-]+(?:\.internal|\.local|\.corp|\.lan)\b/g,
-  },
-  {
-    type: "INTERNAL_URL",
+    type: "Serveur critique",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|[a-zA-Z0-9.-]+\.internal)[^\s]*/gi,
+    regex: /\b(?:srv|server|prod|production)[-_]?[a-zA-Z0-9_-]{3,}\b/gi,
+  },
+  {
+    type: "SOC Incident",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:soc alert|incident|ransomware|breach|compromise|privilege escalation)\b/gi,
+  },
+  {
+    type: "OT/SCADA",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:scada|plc|ics|ot segment|industrial control system|electrical grid controller)\b/gi,
+  },
+  {
+    type: "VPN",
+    severity: "HIGH",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:vpn|openvpn|wireguard|ipsec|vpn-core|vpn-admin)\b/gi,
+  },
+  {
+    type: "SIEM",
+    severity: "HIGH",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:siem|splunk|elastic siem|sentinel|qradar|soc dashboard)\b/gi,
   },
 
-  // =========================
-  // Business Sensitive
-  // =========================
   {
-    type: "CONTRACT_NUMBER",
+    type: "Projet confidentiel",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:contrat|contract|agreement)\s*[:#\-]?\s*[A-Z0-9\-]{5,30}\b/gi,
+    regex: /\b(?:projet|project)\s+[A-Za-z0-9_-]{3,}\s*(?:confidentiel|confidential|secret|internal)?\b/gi,
   },
   {
-    type: "CUSTOMER_NAME",
-    severity: "HIGH",
-    frameworks: ["GDPR", "NIS2", "ISO27001"],
-    regex:
-      /\b(?:client|customer)\s*[:\-]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&.' -]{2,60}\b/g,
-  },
-  {
-    type: "SUPPLIER_NAME",
-    severity: "HIGH",
+    type: "Code source",
+    severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
     regex:
-      /\b(?:fournisseur|supplier|vendor)\s*[:\-]?\s+[A-ZÀ-Ÿ][A-Za-zÀ-ÿ0-9&.' -]{2,60}\b/g,
+      /\b(?:function|const|let|var|class|public static|private static|SELECT \* FROM|INSERT INTO|masterPassword|password\s*=)\b/gi,
+  },
+  {
+    type: "Architecture",
+    severity: "HIGH",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:architecture|zero trust|microservices|kubernetes|hybrid cloud|hld|lld|topology)\b/gi,
+  },
+  {
+    type: "Roadmap",
+    severity: "HIGH",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:roadmap|strategy|stratégie|acquisition strategy|future release|internal planning)\b/gi,
+  },
+
+  {
+    type: "Prompt Injection",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:ignore previous instructions|ignore all previous|override instructions|disregard rules)\b/gi,
+  },
+  {
+    type: "Jailbreak",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:dan mode|developer mode|jailbreak|unrestricted ai|no restrictions|do anything now)\b/gi,
+  },
+  {
+    type: "Data Exfiltration",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:export all|extract all|dump database|send all credentials|retrieve secrets|export all passwords)\b/gi,
+  },
+  {
+    type: "System Prompt Leak",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:show system prompt|reveal hidden prompt|display internal instructions|show developer prompt|reveal your system prompt)\b/gi,
   },
 ];
 
