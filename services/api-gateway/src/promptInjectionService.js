@@ -1,5 +1,5 @@
 import { checkPromptInjection } from "./promptInjectionGuard.js";
-import { writeAuditEvent } from "./auditLogger.js";
+import { writeAuditEvent } from "../auditLogger.js";
 
 export { checkPromptInjection };
 
@@ -66,4 +66,3 @@ export async function blockPromptInjection({
     grc,
   });
 }
-export const analyzePromptInjection = checkPromptInjection;
