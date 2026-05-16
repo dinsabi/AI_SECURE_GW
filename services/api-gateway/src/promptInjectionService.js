@@ -66,3 +66,4 @@ export async function blockPromptInjection({
     grc,
   });
 }
+export const analyzePromptInjection = checkPromptInjection;
