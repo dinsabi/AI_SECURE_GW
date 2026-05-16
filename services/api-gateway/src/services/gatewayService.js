@@ -3,9 +3,9 @@ import { routeLLM } from "../llmRouter.js";
 import { writeAuditEvent } from "../auditLogger.js";
 import { secureLLMResponse } from "./responseSecurityService.js";
 import {
-  checkPromptInjection,
+  analyzePromptInjection,
   blockPromptInjection,
-} from "./promptInjectionService.js";
+} from "../promptInjectionService.js";
 import { readUserFromHeaders } from "../middleware/auth.js";
 
 function publicFindings(findings = []) {
@@ -44,7 +44,7 @@ export async function processGenerateRequest(req, res, routeName, openai) {
     mfaVerified: "false",
   };
 
-  const injection = checkPromptInjection(prompt);
+  const injection = analyzePromptInjection(prompt);
 
   if (injection.decision === "BLOCK") {
     return blockPromptInjection({
@@ -142,7 +142,7 @@ export async function processGatewayRequest(req, res, routeName, openai) {
   const frameworks = req.body.frameworks || ["NIS2", "GDPR", "ISO27001"];
   const user = readUserFromHeaders(req);
 
-  const injection = checkPromptInjection(prompt);
+  const injection = analyzePromptInjection(prompt);
 
   if (injection.decision === "BLOCK") {
     return blockPromptInjection({
