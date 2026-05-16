@@ -1,4 +1,4 @@
-import { checkPromptInjection } from "../promptInjectionGuard.js";
+import { checkPromptInjection } from "./promptInjectionGuard.js";
 import { writeAuditEvent } from "../auditLogger.js";
 
 export { checkPromptInjection };
