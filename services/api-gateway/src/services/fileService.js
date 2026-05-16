@@ -6,7 +6,7 @@ import { writeAuditEvent } from "../auditLogger.js";
 import { readUserFromHeaders } from "../middleware/auth.js";
 import { secureLLMResponse } from "./responseSecurityService.js";
 import {
-  checkPromptInjection,
+  analyzePromptInjection,
   blockPromptInjection,
 } from "../promptInjectionService.js";
 
@@ -72,7 +72,7 @@ export async function processFileAnalyzeRequest(req, res, openai) {
       extractedTextLength: result.extractedTextLength,
     };
 
-    const injection = checkPromptInjection(result.originalText || "");
+    const injection = analyzePromptInjection(result.originalText || "");
 
     if (injection.decision === "BLOCK") {
       return blockPromptInjection({
