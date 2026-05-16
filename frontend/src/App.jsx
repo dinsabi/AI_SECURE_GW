@@ -302,4 +302,6 @@ export default function App() {
       {renderPage()}
     </MainLayout>
   );
+
+  const API_BASE = getApiBase();
 }
