@@ -21,8 +21,7 @@ export const DLP_PATTERNS = [
     type: "Adresse",
     severity: "HIGH",
     frameworks: ["RGPD"],
-    regex:
-      /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
+    regex: /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
   },
   {
     type: "Date de naissance",
@@ -76,16 +75,14 @@ export const DLP_PATTERNS = [
     type: "Salaire",
     severity: "HIGH",
     frameworks: ["RGPD", "ISO27001"],
-    regex:
-      /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
+    regex: /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
   },
 
   {
     type: "API Key",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:api[_-]?key|apikey|secret[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_\-./=]{12,}["']?/gi,
+    regex: /\b(?:api[_-]?key|apikey|secret[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_\-./=]{12,}["']?/gi,
   },
   {
     type: "AWS Secret",
@@ -103,8 +100,7 @@ export const DLP_PATTERNS = [
     type: "Password",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:password|passwd|pwd|motdepasse|mot_de_passe|secret)\s*[:=]\s*["']?[^\s,;"]+["']?/gi,
+    regex: /\b(?:password|passwd|pwd|motdepasse|mot_de_passe|secret)\s*[:=]\s*["']?[^\s,;"]+["']?/gi,
   },
   {
     type: "SSH Key",
@@ -167,8 +163,7 @@ export const DLP_PATTERNS = [
     type: "Code source",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /\b(?:function|const|let|var|class|public static|private static|SELECT \* FROM|INSERT INTO|masterPassword|password\s*=)\b/gi,
+    regex: /\b(?:function|const|let|var|class|public static|private static|SELECT \* FROM|INSERT INTO|masterPassword|password\s*=)\b/gi,
   },
   {
     type: "Architecture",
