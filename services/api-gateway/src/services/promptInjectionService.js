@@ -1,8 +1,8 @@
-import { analyzePromptInjection } from "../promptInjectionGuard.js";
+import { checkPromptInjection } from "./promptInjectionGuard.js";
 import { writeAuditEvent } from "../auditLogger.js";
 
 export function checkPromptInjection(text) {
-  return analyzePromptInjection(text || "");
+  return checkPromptInjection(text || "");
 }
 
 function injectionFindings(injection) {
