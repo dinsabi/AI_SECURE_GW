@@ -1,4 +1,4 @@
-import { checkPromptInjection as runPromptInjectionCheck } from "../promptInjectionGuard.js";
+import { checkPromptInjection as runPromptInjectionCheck } from "./promptInjectionGuard.js";
 
 export function analyzePromptInjection(text = "") {
   return runPromptInjectionCheck(text || "");

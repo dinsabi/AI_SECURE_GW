@@ -8,7 +8,7 @@ import { secureLLMResponse } from "./responseSecurityService.js";
 import {
   checkPromptInjection,
   blockPromptInjection,
-} from "./promptInjectionService.js";
+} from "../promptInjectionService.js";
 
 export const upload = multer({
   storage: multer.memoryStorage(),
