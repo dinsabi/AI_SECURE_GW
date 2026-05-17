@@ -92,6 +92,7 @@ export default function App() {
       setActivePage("security");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
+      alert("LOGIN ERROR: " + err.message + "\nAPI: " + API_BASE + "\nORIGIN: " + window.location.origin);
       setStatus("Erreur connexion API");
       setResult({
         ok: false,
