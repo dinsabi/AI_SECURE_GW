@@ -97,7 +97,9 @@ export default function App() {
         ok: false,
         error: "Erreur connexion API",
         message: err.message,
+        name: err.name,
         api: API_BASE,
+        origin: window.location.origin,
       });
     }
   };
@@ -143,9 +145,11 @@ export default function App() {
       setStatus("Erreur analyse prompt");
       setResult({
         ok: false,
-        error: "Erreur analyse prompt",
+        error: "Erreur connexion API",
         message: err.message,
+        name: err.name,
         api: API_BASE,
+        origin: window.location.origin,
       });
     }
   };
@@ -188,9 +192,11 @@ export default function App() {
       setStatus("Erreur analyse fichier");
       setResult({
         ok: false,
-        error: "Erreur analyse fichier",
+        error: "Erreur connexion API",
         message: err.message,
+        name: err.name,
         api: API_BASE,
+        origin: window.location.origin,
       });
     }
   };
@@ -230,9 +236,11 @@ export default function App() {
       setDashboard(null);
       setResult({
         ok: false,
-        error: "Erreur dashboard SOC",
+        error: "Erreur connexion API",
         message: err.message,
+        name: err.name,
         api: API_BASE,
+        origin: window.location.origin,
       });
     }
   };
