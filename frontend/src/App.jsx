@@ -20,7 +20,9 @@ function getApiBase() {
   return "http://localhost:8080";
 }
 
+
 const API_BASE = getApiBase();
+console.log("API_BASE =", API_BASE);
 
 export default function App() {
   const [activePage, setActivePage] = useState("security");
@@ -303,5 +305,4 @@ export default function App() {
     </MainLayout>
   );
 
-  const API_BASE = getApiBase();
 }
