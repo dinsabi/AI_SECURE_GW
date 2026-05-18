@@ -17,10 +17,79 @@ function getApiBase() {
 
 const API_BASE = getApiBase();
 
+function LoginPage({ username, setUsername, password, setPassword, onLogin, status }) {
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
+      <div className="w-full max-w-md rounded-3xl border border-cyan-500/30 bg-slate-900 p-8 shadow-2xl shadow-cyan-900/30">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <img
+            src="/cidns-logo.jpeg"
+            alt="CIDNS"
+            className="mb-5 h-20 w-auto rounded-xl bg-white p-2"
+          />
+
+          <h1 className="text-3xl font-bold text-cyan-300">
+            AI Secure Gateway
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-400">
+            Secure access · Zero Trust AI · DLP · NIS2 · ISO27001 · RGPD
+          </p>
+        </div>
+
+        <form onSubmit={onLogin} className="space-y-5">
+          <div>
+            <label className="mb-1 block text-sm text-slate-400">
+              Username
+            </label>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-cyan-400"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm text-slate-400">
+              Password
+            </label>
+            <input
+              type="password"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-cyan-400"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full rounded-xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 hover:bg-cyan-400"
+          >
+            Secure Login
+          </button>
+        </form>
+
+        {status && (
+          <div className="mt-5 rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-300">
+            {status}
+          </div>
+        )}
+
+        <p className="mt-6 text-center text-xs text-slate-500">
+          CIDNS · Enterprise AI Security Gateway
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin");
   const [token, setToken] = useState("");
+  const [user, setUser] = useState(null);
 
   const [prompt, setPrompt] = useState(
     "Bonjour mon email est jp.dupont@cidns.eu, mon IBAN est BE80 2666 4888 5225, ma clé AWS est AKIAIOSFODNN7EXAMPLE, password=SuperSecret123 et token GitHub ghp_1234567890abcdefghijklmnopqrstuvwxyzABCD"
@@ -57,11 +126,20 @@ export default function App() {
       }
 
       setToken(data.access_token || data.token || "demo-token");
-      setStatus("Login réussi");
+      setUser(data.user || { username });
+      setStatus("");
     } catch (error) {
       console.error("Login error:", error);
       setStatus(`Login failed: ${error.message}`);
     }
+  }
+
+  function handleLogout() {
+    setToken("");
+    setUser(null);
+    setResult(null);
+    setFileResult(null);
+    setStatus("");
   }
 
   async function handleAnalyzePrompt() {
@@ -73,7 +151,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           prompt,
@@ -107,7 +185,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           prompt,
@@ -147,7 +225,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/v1/files/analyze`, {
         method: "POST",
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
@@ -170,75 +248,61 @@ export default function App() {
 
   const activeResult = result || fileResult;
 
+  if (!token) {
+    return (
+      <LoginPage
+        username={username}
+        setUsername={setUsername}
+        password={password}
+        setPassword={setPassword}
+        onLogin={handleLogin}
+        status={status}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-7xl px-6 py-8">
         <header className="mb-8 rounded-2xl border border-cyan-500/30 bg-slate-900 p-6 shadow-lg shadow-cyan-900/20">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-cyan-300">
-                AI Secure Gateway
-              </h1>
-              <p className="text-sm text-slate-400">
-                Zero Trust AI Prompt Firewall · DLP · NIS2 · ISO27001 · RGPD
-              </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <img
+                src="/cidns-logo.jpeg"
+                alt="CIDNS"
+                className="h-16 w-auto rounded-xl bg-white p-2"
+              />
+
+              <div>
+                <h1 className="text-3xl font-bold text-cyan-300">
+                  AI Secure Gateway
+                </h1>
+                <p className="text-sm text-slate-400">
+                  Zero Trust AI Prompt Firewall · DLP · NIS2 · ISO27001 · RGPD
+                </p>
+              </div>
             </div>
 
-            <div className="rounded-xl bg-slate-800 px-4 py-2 text-sm text-slate-300">
-              API: <span className="text-cyan-300">{API_BASE}</span>
+            <div className="flex flex-col items-start gap-2 md:items-end">
+              <div className="rounded-xl bg-slate-800 px-4 py-2 text-sm text-slate-300">
+                Connected as{" "}
+                <span className="text-cyan-300">
+                  {user?.username || username}
+                </span>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="rounded-xl border border-red-500/40 px-4 py-2 text-sm text-red-300 hover:bg-red-500/10"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </header>
 
         <main className="grid gap-6 lg:grid-cols-3">
           <section className="space-y-6 lg:col-span-1">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
-              <h2 className="mb-4 text-xl font-semibold text-cyan-300">
-                Login
-              </h2>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm text-slate-400">
-                    Username
-                  </label>
-                  <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-cyan-400"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm text-slate-400">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus:border-cyan-400"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-cyan-500 px-4 py-2 font-semibold text-slate-950 hover:bg-cyan-400"
-                >
-                  Login
-                </button>
-              </form>
-
-              <div className="mt-4 text-sm">
-                Token:{" "}
-                {token ? (
-                  <span className="text-emerald-400">Connected</span>
-                ) : (
-                  <span className="text-red-400">Not connected</span>
-                )}
-              </div>
-            </div>
-
             <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
               <h2 className="mb-4 text-xl font-semibold text-cyan-300">
                 Analyse fichier
@@ -378,17 +442,6 @@ export default function App() {
                     <pre className="whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-3 text-sm text-slate-200">
                       {activeResult.answer}
                     </pre>
-                  </div>
-                )}
-
-                {activeResult.message && (
-                  <div className="mt-5 rounded-xl border border-slate-700 bg-slate-950 p-4">
-                    <h3 className="mb-2 font-semibold text-cyan-300">
-                      Message
-                    </h3>
-                    <p className="text-sm text-slate-300">
-                      {activeResult.message}
-                    </p>
                   </div>
                 )}
 
