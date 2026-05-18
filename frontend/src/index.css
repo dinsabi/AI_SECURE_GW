@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary-color: #0D1B2A;
+  --secondary-color: #1B263B;
+  --accent-color: #4DA3FF;
+  --accent-hover: #2563EB;
+
+  --background-color: #0A0F1C;
+  --card-color: #111827;
+
+  --text-color: #F1F5F9;
+  --text-muted: #94A3B8;
+
+  --border-color: #1E293B;
+
+  --success-color: #10B981;
+  --danger-color: #EF4444;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, #1B263B 0%, #0A0F1C 40%),
+    linear-gradient(to bottom, #0A0F1C, #020617);
+  color: var(--text-color);
+  min-height: 100vh;
+}
+
+button {
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  opacity: 0.95;
+}
+
+input,
+textarea,
+select {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.card {
+  background: rgba(17, 24, 39, 0.92);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 24px;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.35),
+    0 0 20px rgba(77,163,255,0.08);
+}
