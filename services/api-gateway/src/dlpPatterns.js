@@ -45,7 +45,7 @@ export const DLP_PATTERNS = [
     type: "IBAN",
     severity: "CRITICAL",
     frameworks: ["RGPD", "NIS2", "ISO27001"],
-    regex: /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b/g,
+    regex: /\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]{4}){2,7}\b/g,
   },
   {
     type: "Carte bancaire",
@@ -78,6 +78,7 @@ export const DLP_PATTERNS = [
     regex: /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
   },
 
+  // Secrets / credentials
   {
     type: "API Key",
     severity: "CRITICAL",
@@ -89,6 +90,12 @@ export const DLP_PATTERNS = [
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
     regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
+  },
+  {
+    type: "GitHub Token",
+    severity: "CRITICAL",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g,
   },
   {
     type: "JWT Token",
@@ -106,8 +113,7 @@ export const DLP_PATTERNS = [
     type: "SSH Key",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex:
-      /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
+    regex: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
   },
   {
     type: "Kubernetes Secret",
@@ -116,6 +122,7 @@ export const DLP_PATTERNS = [
     regex: /\b(?:k8s|kubernetes)[-_ ]?(?:secret|token)[-_ ]?[A-Za-z0-9_-]{6,}\b/gi,
   },
 
+  // Infrastructure / security keywords
   {
     type: "Firewall",
     severity: "HIGH",
@@ -153,6 +160,7 @@ export const DLP_PATTERNS = [
     regex: /\b(?:siem|splunk|elastic siem|sentinel|qradar|soc dashboard)\b/gi,
   },
 
+  // Business sensitive data
   {
     type: "Projet confidentiel",
     severity: "HIGH",
@@ -178,11 +186,13 @@ export const DLP_PATTERNS = [
     regex: /\b(?:roadmap|strategy|stratégie|acquisition strategy|future release|internal planning)\b/gi,
   },
 
+  // Prompt security
   {
     type: "Prompt Injection",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:ignore previous instructions|ignore all previous|override instructions|disregard rules)\b/gi,
+    regex:
+      /\b(?:ignore previous instructions|ignore all previous|override instructions|disregard rules)\b/gi,
   },
   {
     type: "Jailbreak",
@@ -200,7 +210,14 @@ export const DLP_PATTERNS = [
     type: "System Prompt Leak",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:show system prompt|reveal hidden prompt|display internal instructions|show developer prompt|reveal your system prompt)\b/gi,
+    regex:
+      /\b(?:show system prompt|reveal hidden prompt|display internal instructions|show developer prompt|reveal your system prompt)\b/gi,
+  },
+  {
+    type: "Role Override",
+    severity: "HIGH",
+    frameworks: ["NIS2", "ISO27001"],
+    regex: /\b(?:you are now|act as|pretend to be|bypass policy|disable safety|ignore policy)\b/gi,
   },
 ];
 
