@@ -1,10 +1,9 @@
 import OpenAI from "openai";
 import express from "express";
 import cors from "cors";
-
+import { DLP_PATTERNS } from "./dlpPatterns.js";
 import { env } from "./config/env.js";
 import { initDatabase } from "./db.js";
-
 import { healthRoutes } from "./routes/healthRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { dashboardRoutes } from "./routes/dashboardRoutes.js";
