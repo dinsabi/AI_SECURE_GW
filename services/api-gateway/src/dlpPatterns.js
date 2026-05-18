@@ -21,7 +21,8 @@ export const DLP_PATTERNS = [
     type: "Adresse",
     severity: "HIGH",
     frameworks: ["RGPD"],
-    regex: /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
+    regex:
+      /\b\d{1,4}\s+(?:rue|avenue|boulevard|chaussée|straat|laan|street|road|place)\s+[A-ZÀ-Ÿa-zà-ÿ0-9\s'-]{3,80}\b/gi,
   },
   {
     type: "Date de naissance",
@@ -39,7 +40,8 @@ export const DLP_PATTERNS = [
     type: "Passeport",
     severity: "HIGH",
     frameworks: ["RGPD"],
-    regex: /\b(?:passport|passeport)?\s*[:\-]?\s*[A-Z]{1,2}[0-9A-Z]{6,12}\b/gi,
+    regex:
+      /\b(?:passport|passeport)?\s*[:\-]?\s*[A-Z]{1,2}[0-9A-Z]{6,12}\b/gi,
   },
   {
     type: "IBAN",
@@ -75,15 +77,15 @@ export const DLP_PATTERNS = [
     type: "Salaire",
     severity: "HIGH",
     frameworks: ["RGPD", "ISO27001"],
-    regex: /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
+    regex:
+      /\b(?:salaire|salary|bonus|payroll|rémunération)\s*[:\-]?\s*\d{2,7}(?:[,.]\d{2})?\s*(?:€|EUR|euros)?\b/gi,
   },
-
-  // Secrets / credentials
   {
     type: "API Key",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:api[_-]?key|apikey|secret[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_\-./=]{12,}["']?/gi,
+    regex:
+      /\b(?:api[_-]?key|apikey|secret[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_\-./=]{12,}["']?/gi,
   },
   {
     type: "AWS Secret",
@@ -107,27 +109,29 @@ export const DLP_PATTERNS = [
     type: "Password",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:password|passwd|pwd|motdepasse|mot_de_passe|secret)\s*[:=]\s*["']?[^\s,;"]+["']?/gi,
+    regex:
+      /\b(?:password|passwd|pwd|motdepasse|mot_de_passe|secret)\s*[:=]\s*["']?[^\s,;"]+["']?/gi,
   },
   {
     type: "SSH Key",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
+    regex:
+      /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
   },
   {
     type: "Kubernetes Secret",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:k8s|kubernetes)[-_ ]?(?:secret|token)[-_ ]?[A-Za-z0-9_-]{6,}\b/gi,
+    regex:
+      /\b(?:k8s|kubernetes)[-_ ]?(?:secret|token)[-_ ]?[A-Za-z0-9_-]{6,}\b/gi,
   },
-
-  // Infrastructure / security keywords
   {
     type: "Firewall",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:firewall|palo alto|fortigate|checkpoint|cisco asa|allow_internal|deny_all)\b/gi,
+    regex:
+      /\b(?:firewall|palo alto|fortigate|checkpoint|cisco asa|allow_internal|deny_all)\b/gi,
   },
   {
     type: "Serveur critique",
@@ -139,13 +143,15 @@ export const DLP_PATTERNS = [
     type: "SOC Incident",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:soc alert|incident|ransomware|breach|compromise|privilege escalation)\b/gi,
+    regex:
+      /\b(?:soc alert|incident|ransomware|breach|compromise|privilege escalation)\b/gi,
   },
   {
     type: "OT/SCADA",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:scada|plc|ics|ot segment|industrial control system|electrical grid controller)\b/gi,
+    regex:
+      /\b(?:scada|plc|ics|ot segment|industrial control system|electrical grid controller)\b/gi,
   },
   {
     type: "VPN",
@@ -159,34 +165,34 @@ export const DLP_PATTERNS = [
     frameworks: ["NIS2", "ISO27001"],
     regex: /\b(?:siem|splunk|elastic siem|sentinel|qradar|soc dashboard)\b/gi,
   },
-
-  // Business sensitive data
   {
     type: "Projet confidentiel",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:projet|project)\s+[A-Za-z0-9_-]{3,}\s*(?:confidentiel|confidential|secret|internal)?\b/gi,
+    regex:
+      /\b(?:projet|project)\s+[A-Za-z0-9_-]{3,}\s*(?:confidentiel|confidential|secret|internal)?\b/gi,
   },
   {
     type: "Code source",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:function|const|let|var|class|public static|private static|SELECT \* FROM|INSERT INTO|masterPassword|password\s*=)\b/gi,
+    regex:
+      /\b(?:function|const|let|var|class|public static|private static|SELECT \* FROM|INSERT INTO|masterPassword|password\s*=)\b/gi,
   },
   {
     type: "Architecture",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:architecture|zero trust|microservices|kubernetes|hybrid cloud|hld|lld|topology)\b/gi,
+    regex:
+      /\b(?:architecture|zero trust|microservices|kubernetes|hybrid cloud|hld|lld|topology)\b/gi,
   },
   {
     type: "Roadmap",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:roadmap|strategy|stratégie|acquisition strategy|future release|internal planning)\b/gi,
+    regex:
+      /\b(?:roadmap|strategy|stratégie|acquisition strategy|future release|internal planning)\b/gi,
   },
-
-  // Prompt security
   {
     type: "Prompt Injection",
     severity: "CRITICAL",
@@ -198,13 +204,15 @@ export const DLP_PATTERNS = [
     type: "Jailbreak",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:dan mode|developer mode|jailbreak|unrestricted ai|no restrictions|do anything now)\b/gi,
+    regex:
+      /\b(?:dan mode|developer mode|jailbreak|unrestricted ai|no restrictions|do anything now)\b/gi,
   },
   {
     type: "Data Exfiltration",
     severity: "CRITICAL",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:export all|extract all|dump database|send all credentials|retrieve secrets|export all passwords)\b/gi,
+    regex:
+      /\b(?:export all|extract all|dump database|send all credentials|retrieve secrets|export all passwords)\b/gi,
   },
   {
     type: "System Prompt Leak",
@@ -217,7 +225,8 @@ export const DLP_PATTERNS = [
     type: "Role Override",
     severity: "HIGH",
     frameworks: ["NIS2", "ISO27001"],
-    regex: /\b(?:you are now|act as|pretend to be|bypass policy|disable safety|ignore policy)\b/gi,
+    regex:
+      /\b(?:you are now|act as|pretend to be|bypass policy|disable safety|ignore policy)\b/gi,
   },
 ];
 
