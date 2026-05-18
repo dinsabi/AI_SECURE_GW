@@ -1,137 +1,125 @@
-import { encryptValue } from "./cryptoService.js";
 import { DLP_PATTERNS, BUSINESS_KEYWORDS } from "./dlpPatterns.js";
 
-export function protectPrompt(input, context = {}) {
-  const originalText = String(input || "");
-  let protectedText = originalText;
+const MASK_BY_TYPE = {
+  "Nom complet": "[MASKED_FULL_NAME]",
+  "Adresse email": "[MASKED_EMAIL]",
+  "Téléphone": "[MASKED_PHONE]",
+  "Adresse": "[MASKED_ADDRESS]",
+  "Date de naissance": "[MASKED_DATE_OF_BIRTH]",
+  "Registre national": "[MASKED_NATIONAL_ID]",
+  "Passeport": "[MASKED_PASSPORT]",
+  "IBAN": "[MASKED_IBAN]",
+  "Carte bancaire": "[MASKED_CARD]",
+  "CVV": "[MASKED_CVV]",
+  "SWIFT/BIC": "[MASKED_BIC]",
+  "Facture": "[MASKED_INVOICE]",
+  "Salaire": "[MASKED_SALARY]",
+  "API Key": "[MASKED_API_KEY]",
+  "AWS Secret": "[MASKED_AWS_KEY]",
+  "JWT Token": "[MASKED_JWT]",
+  "Password": "[MASKED_PASSWORD]",
+  "GitHub Token": "[MASKED_GITHUB_TOKEN]",
+  "SSH Key": "[MASKED_SSH_PRIVATE_KEY]",
+  "Kubernetes Secret": "[MASKED_K8S_SECRET]",
+};
 
-  const tokenMap = {};
+function severityScore(severity) {
+  switch (severity) {
+    case "CRITICAL":
+      return 40;
+    case "HIGH":
+      return 25;
+    case "MEDIUM":
+      return 10;
+    case "LOW":
+      return 5;
+    default:
+      return 5;
+  }
+}
+
+function normalizeType(type = "") {
+  return String(type)
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export function analyzeDataProtection(input = "") {
+  const text = String(input || "");
   const findings = [];
-  const counters = {};
+  let protectedContent = text;
 
-  function nextToken(type) {
-    counters[type] = (counters[type] || 0) + 1;
-    return `[${type}_${String(counters[type]).padStart(3, "0")}]`;
-  }
-
-  function register(type, value, severity = "MEDIUM", frameworks = []) {
-    const token = nextToken(type);
-
-    tokenMap[token] = encryptValue(value);
-
-    findings.push({
-      type,
-      token,
-      severity,
-      frameworks,
-      originalLength: value.length,
-      encrypted: true,
-    });
-
-    return token;
-  }
-
-  function replacePattern(pattern) {
-    protectedText = protectedText.replace(pattern.regex, (match) => {
-      return register(
-        pattern.type,
-        match,
-        pattern.severity,
-        pattern.frameworks || []
-      );
-    });
-  }
-
-  // =========================
-  // Apply all DLP patterns
-  // =========================
   for (const pattern of DLP_PATTERNS) {
-    replacePattern(pattern);
+    const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+    const matches = [...text.matchAll(regex)];
+
+    if (matches.length === 0) continue;
+
+    for (const match of matches) {
+      findings.push({
+        type: pattern.type,
+        severity: pattern.severity,
+        frameworks: pattern.frameworks || [],
+        value: match[0],
+      });
+    }
+
+    const replacement =
+      MASK_BY_TYPE[pattern.type] || `[MASKED_${normalizeType(pattern.type)}]`;
+
+    protectedContent = protectedContent.replace(regex, replacement);
   }
 
-  // =========================
-  // Business sensitive keywords
-  // =========================
-  const businessHits = BUSINESS_KEYWORDS.filter((kw) =>
-    originalText.toLowerCase().includes(kw.toLowerCase())
+  const businessFindings = BUSINESS_KEYWORDS.filter((keyword) =>
+    text.toLowerCase().includes(keyword.toLowerCase())
   );
 
-  // =========================
-  // Scoring
-  // =========================
-  let score = 0;
-
-  for (const finding of findings) {
-    if (finding.severity === "LOW") score += 5;
-    if (finding.severity === "MEDIUM") score += 15;
-    if (finding.severity === "HIGH") score += 30;
-    if (finding.severity === "CRITICAL") score += 50;
+  for (const keyword of businessFindings) {
+    findings.push({
+      type: "Business Sensitive Keyword",
+      severity: "HIGH",
+      frameworks: ["NIS2", "ISO27001", "RGPD"],
+      value: keyword,
+    });
   }
 
-  score += businessHits.length * 10;
+  let riskScore = findings.reduce(
+    (total, finding) => total + severityScore(finding.severity),
+    0
+  );
 
-  if (
-    context.modelType === "public_llm" ||
-    context.modelType === "openai" ||
-    context.modelType === "chatgpt"
-  ) {
-    score += 10;
-  }
+  riskScore = Math.min(riskScore, 100);
 
-  if (context.mfaVerified === "false" || context.mfaVerified === false) {
-    score += 15;
-  }
+  const riskLevel =
+    riskScore >= 80
+      ? "CRITICAL"
+      : riskScore >= 50
+      ? "HIGH"
+      : riskScore >= 20
+      ? "MEDIUM"
+      : "LOW";
 
-  if (["Finance", "HR", "Legal", "Security"].includes(context.department)) {
-    score += 10;
-  }
-
-  if (context.country && context.country !== "BE") {
-    score += 5;
-  }
-
-  score = Math.min(score, 100);
-
-  // =========================
-  // Decision
-  // =========================
-  let riskLevel = "LOW";
-  let decision = "ALLOW";
-
-  const hasCritical = findings.some((f) => f.severity === "CRITICAL");
-  const hasHigh = findings.some((f) => f.severity === "HIGH");
-
-  if (score >= 30 || hasHigh) {
-    riskLevel = "MEDIUM";
-    decision = "MASK";
-  }
-
-  if (score >= 60 || hasHigh) {
-    riskLevel = "HIGH";
-    decision = "MASK_OR_REVIEW";
-  }
-
-  if (score >= 85 || hasCritical) {
-    riskLevel = "CRITICAL";
-    decision = "BLOCK";
-  }
+  const decision =
+    riskScore >= 70
+      ? "BLOCK"
+      : riskScore >= 20
+      ? "SANITIZE"
+      : "ALLOW";
 
   return {
-    originalText,
-    protectedText,
-    tokenMap,
-    findings,
-    businessHits,
-    score,
-    riskLevel,
+    detected: findings.length > 0,
     decision,
-    stats: {
-      totalFindings: findings.length,
-      tokenTypes: [...new Set(findings.map((f) => f.type))],
-      encryptedTokens: true,
-      frameworks: [
-        ...new Set(findings.flatMap((f) => f.frameworks || [])),
-      ],
-    },
+    riskScore,
+    riskLevel,
+    dlpFindings: findings.length,
+    findings,
+    protectedContent,
+    message:
+      findings.length > 0
+        ? "Sensitive data detected and protected before sending to the AI."
+        : "No sensitive data or prompt injection detected. The request can be processed according to the current policy.",
   };
 }
